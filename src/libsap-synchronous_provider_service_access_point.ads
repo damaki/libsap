@@ -373,9 +373,9 @@ is
    --
    --  This is a non-blocking operation.
 
-   ------------------------
-   -- Service Operations --
-   ------------------------
+   ---------------------------------
+   -- Service Provider Operations --
+   ---------------------------------
 
    procedure Get_Next_Request (Handle : in out Service_Handle)
    with
