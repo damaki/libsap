@@ -32,6 +32,8 @@ package LibSAP.Synchronous_User_Service_Access_Point with
     Abstract_State => ((Transaction_Queue with Synchronous), Queue_Memory)
 is
 
+   type Transaction_ID is new Positive range 1 .. Queue_Capacity;
+
    ------------------------
    -- Indication Handles --
    ------------------------
@@ -46,6 +48,9 @@ is
 
    function Is_Null (Handle : Indication_Handle) return Boolean
    with Inline, Global => null;
+
+   function Get_TID (Handle : Indication_Handle) return Transaction_ID
+   with Inline, Global => null, Pre => not Is_Null (Handle);
 
    function Indication_Reference
      (Handle : Indication_Handle)
@@ -121,6 +126,9 @@ is
 
    function Is_Null (Promise : Response_Promise) return Boolean;
 
+   function Get_TID (Promise : Response_Promise) return Transaction_ID
+   with Inline, Global => null, Pre => not Is_Null (Promise);
+
    procedure Move
      (Target : in out Response_Promise; Source : in out Response_Promise)
    with
@@ -144,6 +152,9 @@ is
 
    function Is_Null (Handle : Response_Handle) return Boolean
    with Inline, Global => null;
+
+   function Get_TID (Handle : Response_Handle) return Transaction_ID
+   with Inline, Global => null, Pre => not Is_Null (Handle);
 
    function Indication_Reference
      (Handle : Response_Handle) return not null access constant Indication_Type
@@ -176,6 +187,9 @@ is
 
    function Is_Null (Handle : Service_Handle) return Boolean
    with Global => null;
+
+   function Get_TID (Handle : Service_Handle) return Transaction_ID
+   with Inline, Global => null, Pre => not Is_Null (Handle);
 
    function Indication_Reference
      (Handle : Service_Handle) return not null access constant Indication_Type
@@ -495,6 +509,22 @@ private
 
    function Is_Null (Promise : Response_Promise) return Boolean
    is (STQ.Is_Null (Promise.Handle));
+
+   -------------
+   -- Get_TID --
+   -------------
+
+   function Get_TID (Handle : Indication_Handle) return Transaction_ID
+   is (Transaction_ID (STQ.Get_TID (Handle.Handle)));
+
+   function Get_TID (Promise : Response_Promise) return Transaction_ID
+   is (Transaction_ID (STQ.Get_TID (Promise.Handle)));
+
+   function Get_TID (Handle : Response_Handle) return Transaction_ID
+   is (Transaction_ID (STQ.Get_TID (Handle.Handle)));
+
+   function Get_TID (Handle : Service_Handle) return Transaction_ID
+   is (Transaction_ID (STQ.Get_TID (Handle.Handle)));
 
    -------------------
    -- Indication_Ready --
