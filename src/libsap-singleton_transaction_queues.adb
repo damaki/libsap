@@ -8,8 +8,6 @@ package body LibSAP.Singleton_Transaction_Queues
   with Refined_State => (Single_Instance => Memory_Holder)
 is
 
-   Memory_Holder : Valid_Queue_Type;
-
    type Confirm_Promise_Token (TID : Transaction_ID) is null record;
 
    type Slot_States is
@@ -31,20 +29,25 @@ is
    end record
    with Predicate => (if Cfm_Token /= null then Cfm_Token.all.TID = TID);
 
-   procedure Allocate_Memory (Queue : in out Queue_Type)
+   type Memory_Holder_Type is record
+      Slots : Transaction_Data_Access_Array;
+   end record
    with
-     Global => null,
-     Pre    =>
-       Is_Valid (Queue)
-       and then (for all TID in Transaction_ID => Queue.Slots (TID) = null),
-     Post   => Is_Valid (Queue);
+     Predicate =>
+       (for all I in Transaction_ID =>
+          (if Slots (I) /= null
+           then
+             Slots (I).all.TID = I
+             and then Slots (I).all.State = Free
+             and then Slots (I).all.Cfm_Token /= null));
 
-   procedure Move (Target : in out Queue_Type; Source : in out Queue_Type)
+   Memory_Holder : Memory_Holder_Type := (Slots => [others => null]);
+
+   procedure Allocate_Memory
    with
-     Global => null,
-     Pre    =>
-       Is_Valid (Source) and then Is_Valid (Target) and then Is_Empty (Target),
-     Post   => Is_Valid (Target) and then Is_Valid (Source);
+     Global => (In_Out => Memory_Holder),
+     Pre    => (for all S of Memory_Holder.Slots => S = null),
+     Post   => (for all S of Memory_Holder.Slots => S /= null);
 
    procedure Move (Target, Source : in out Transaction_Data_Access)
    with
@@ -54,6 +57,7 @@ is
      Post           =>
        Target.all.TID = Source.all.TID'Old
        and Target.all.State = Source.all.State'Old
+       and Target.all.Next_Pending = Source.all.Next_Pending'Old
        and
          (Requires_Confirm (Target.all.Request)
           = Requires_Confirm (Source.all.Request)'Old)
@@ -96,15 +100,13 @@ is
           (if Queue.Slots (I) /= null then Queue.Slots (I).all.TID = I))
 
        --  Transaction slots are never in certain states while they are being
-       --  held in Queue. In those states, the slot is held by a handle
+       --  held in Queue. In other states, the slot is held by a handle
        --  instead.
 
        and then
          (for all S of Queue.Slots =>
             (if S /= null
-             then
-               S.all.State
-               not in Request_Allocated | Request_Read | Confirm_Read))
+             then S.all.State in Free | Request_Pending | Confirm_Pending))
 
        --  Transactions in the Pending_Request state have a null Cfm_Token
        --  (the Cfm_Token was moved to a Confirm_Promise) if and only if the
@@ -228,7 +230,9 @@ is
        and then
          (for all S of Queue.Slots =>
             (if S /= null and then S.all.State = Confirm_Pending
-             then Valid_Confirm (S.all.Request, S.all.Confirm))));
+             then
+               Requires_Confirm (S.all.Request)
+               and then Valid_Confirm (S.all.Request, S.all.Confirm))));
 
    --------------
    -- Is_Empty --
@@ -255,12 +259,10 @@ is
    is (TD.all.State in Request_Read | Confirm_Written
 
        and then
-         (if not Requires_Confirm (TD.all.Request)
-          then TD.all.State /= Confirm_Written)
-
-       and then
          (if TD.all.State = Confirm_Written
-          then Valid_Confirm (TD.all.Request, TD.all.Confirm))
+          then
+            Requires_Confirm (TD.all.Request)
+            and then Valid_Confirm (TD.all.Request, TD.all.Confirm))
 
        and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request));
 
@@ -272,6 +274,7 @@ is
      (TD : not null Transaction_Data_Access) return Boolean
    is (TD.all.State = Confirm_Read
        and then TD.all.Cfm_Token /= null
+       and then Requires_Confirm (TD.all.Request)
        and then Valid_Confirm (TD.all.Request, TD.all.Confirm));
 
    -------------
@@ -416,67 +419,6 @@ is
    begin
       Target := Source;
       Source := null;
-   end Move;
-
-   procedure Move (Target : in out Queue_Type; Source : in out Queue_Type) is
-   begin
-      Target.Has_Free_Slot := False;
-      Target.Has_Pending_Request := False;
-      Target.First_Pending := Source.First_Pending;
-      Target.Last_Pending := Source.Last_Pending;
-
-      for I in Transaction_ID loop
-         pragma Loop_Invariant (Is_Valid (Target));
-
-         --  Slots that are not visited yet are null in Target
-
-         pragma
-           Loop_Invariant
-             (for all J in Transaction_ID =>
-                (if J >= I then Target.Slots (I) = null));
-
-         --  Has_Free_Slot reflects the slots visited so far
-
-         pragma
-           Loop_Invariant
-             (Target.Has_Free_Slot
-              = (for some J in Transaction_ID =>
-                   J < I
-                   and then Target.Slots (J) /= null
-                   and then Target.Slots (J).all.State = Free));
-
-         --  Has_Pending_Request reflects the slots visited so far
-
-         pragma
-           Loop_Invariant
-             (Target.Has_Pending_Request
-              = (for some J in Transaction_ID =>
-                   J < I
-                   and then Target.Slots (J) /= null
-                   and then Target.Slots (J).all.State = Request_Pending));
-
-         --  All slots visited so far in Source are now null
-
-         pragma
-           Loop_Invariant
-             (for all J in Transaction_ID =>
-                (if J < I then Source.Slots (J) = null));
-
-         if Source.Slots (I) /= null then
-            Move (Target => Target.Slots (I), Source => Source.Slots (I));
-
-            if Target.Slots (I) /= null then
-               if Target.Slots (I).all.State = Free then
-                  Target.Has_Free_Slot := True;
-               elsif Target.Slots (I).all.State = Request_Pending then
-                  Target.Has_Pending_Request := True;
-               end if;
-            end if;
-         end if;
-      end loop;
-
-      Source.Has_Pending_Request := False;
-      Source.Has_Free_Slot := False;
    end Move;
 
    -------------------------
@@ -800,29 +742,23 @@ is
    -- Allocate_Memory --
    ---------------------
 
-   procedure Allocate_Memory (Queue : in out Queue_Type) is
+   procedure Allocate_Memory is
    begin
-      Queue.Has_Free_Slot := True;
-      Queue.Has_Pending_Request := False;
-
       for I in Transaction_ID loop
-         pragma Loop_Invariant (Queue.Has_Free_Slot = True);
-         pragma Loop_Invariant (Queue.Has_Pending_Request = False);
-
          pragma
            Loop_Invariant
              (for all J in Transaction_ID =>
                 (if J < I
                  then
-                   Queue.Slots (J) /= null
-                   and then Queue.Slots (J).all.State = Free
-                 else Queue.Slots (J) = null));
+                   Memory_Holder.Slots (J) /= null
+                   and then Memory_Holder.Slots (J).all.State = Free
+                 else Memory_Holder.Slots (J) = null));
 
          declare
             Token : constant Confirm_Promise_Token_Access :=
               new Confirm_Promise_Token'(TID => I);
          begin
-            Queue.Slots (I) :=
+            Memory_Holder.Slots (I) :=
               new Transaction_Data'
                 (TID          => I,
                  Request      => <>,
@@ -840,9 +776,33 @@ is
 
    procedure Claim_Single_Instance (Queue : in out Queue_Type) is
    begin
-      Move (Target => Queue, Source => Memory_Holder);
+      Queue.Has_Free_Slot := False;
+      Queue.Has_Pending_Request := False;
+
+      for I in Transaction_ID loop
+         pragma Loop_Invariant (Is_Valid (Queue));
+         pragma Loop_Invariant (not Queue.Has_Pending_Request);
+
+         pragma
+           Loop_Invariant
+             (for all S of Queue.Slots =>
+                (if S /= null then S.all.State = Free));
+
+         pragma
+           Loop_Invariant
+             (for all J in Transaction_ID =>
+                (if J < I
+                 then Memory_Holder.Slots (J) = null
+                 else Queue.Slots (J) = null));
+
+         if Memory_Holder.Slots (I) /= null then
+            Queue.Has_Free_Slot := True;
+            Move
+              (Target => Queue.Slots (I), Source => Memory_Holder.Slots (I));
+         end if;
+      end loop;
    end Claim_Single_Instance;
 
 begin
-   Allocate_Memory (Memory_Holder);
+   Allocate_Memory;
 end LibSAP.Singleton_Transaction_Queues;
