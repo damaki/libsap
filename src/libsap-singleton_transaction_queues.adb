@@ -21,11 +21,10 @@ is
       Confirm_Read);
 
    type Transaction_Data (TID : Transaction_ID) is record
-      Request      : aliased Request_Type;
-      Confirm      : aliased Confirm_Type;
-      State        : Slot_States;
-      Next_Pending : Transaction_ID;
-      Cfm_Token    : Confirm_Promise_Token_Access;
+      Request   : aliased Request_Type;
+      Confirm   : aliased Confirm_Type;
+      State     : Slot_States;
+      Cfm_Token : Confirm_Promise_Token_Access;
    end record
    with Predicate => (if Cfm_Token /= null then Cfm_Token.all.TID = TID);
 
@@ -57,7 +56,6 @@ is
      Post           =>
        Target.all.TID = Source.all.TID'Old
        and Target.all.State = Source.all.State'Old
-       and Target.all.Next_Pending = Source.all.Next_Pending'Old
        and
          (Requires_Confirm (Target.all.Request)
           = Requires_Confirm (Source.all.Request)'Old)
@@ -87,152 +85,89 @@ is
      Pre    => Handle.TD /= null,
      Post   => Queue.Slots (Handle.TD.all.TID) = null;
 
+   ------------------------
+   -- Property Functions --
+   ------------------------
+
+   subtype Valid_Queue_Slot_State is Slot_States
+   with
+     Static_Predicate =>
+       Valid_Queue_Slot_State in Free | Request_Pending | Confirm_Pending;
+   --  Set of states that a transaction can be in while it is held in the
+   --  transaction queue. The transaction can only be in other states while
+   --  it is held by a handle.
+
+   function P_Slot_Index_Matches_TID (Queue : Queue_Type) return Boolean
+   is (for all I in Queue.Slots'Range =>
+         (if Queue.Slots (I) /= null then Queue.Slots (I).all.TID = I))
+   with Ghost;
+   --  True when the TID of all transactions matches the index of the slot
+   --  they're stored in.
+
+   function P_Cfm_Token_Present (Queue : Queue_Type) return Boolean
+   is (for all S of Queue.Slots =>
+         (if S /= null
+          then
+            (if S.all.State = Request_Pending
+             then (S.all.Cfm_Token = null) = Requires_Confirm (S.all.Request)
+             elsif S.all.State = Confirm_Pending
+             then S.all.Cfm_Token = null
+             elsif S.all.State = Free
+             then S.all.Cfm_Token /= null)))
+   with Ghost;
+   --  Cfm_Token is not held by a transaction only when:
+   --    * the transaction is in the Cfm_Pending state; or
+   --    * the transaction is in the Request_Pending state and the request
+   --      requires a confirmation.
+
+   function P_Has_Free_Slot_Valid (Queue : Queue_Type) return Boolean
+   is (if Queue.Has_Free_Slot
+       then
+         (for some S of Queue.Slots => S /= null and then S.all.State = Free))
+   with Ghost;
+   --  If Has_Free_Slot is true, then there is at least one slot that is in the
+   --  Free state.
+
+   function P_Has_Pending_Request_Valid (Queue : Queue_Type) return Boolean
+   is (Queue.Has_Pending_Request
+       = (for some S of Queue.Slots =>
+            S /= null and then S.all.State = Request_Pending)
+
+       and then
+         Queue.Has_Pending_Request
+         = not LibSAP.Unique_Integer_Queues.Is_Empty (Queue.Pending_Queue))
+   with Ghost;
+
+   function P_Confirm_Pending_Valid (Queue : Queue_Type) return Boolean
+   is (for all S of Queue.Slots =>
+         (if S /= null and then S.all.State = Confirm_Pending
+          then
+            Requires_Confirm (S.all.Request)
+            and then Valid_Confirm (S.all.Request, S.all.Confirm)))
+   with Ghost;
+   --  Slots in the Confirm_Pending state have a valid confirm object
+
+   function P_Pending_Requests_In_Queue (Queue : Queue_Type) return Boolean
+   is (for all I in Transaction_ID =>
+         LibSAP.Unique_Integer_Queues.Contains (Queue.Pending_Queue, I)
+         = (Queue.Slots (I) /= null
+            and then Queue.Slots (I).all.State = Request_Pending))
+   with Ghost;
+
    --------------
    -- Is_Valid --
    --------------
 
    function Is_Valid (Queue : Queue_Type) return Boolean
-   is (
-       --  Transaction_Queue elements can only be placed in slots that match
-       --  their transaction ID (TID).
+   is ((for all S of Queue.Slots =>
+          (if S /= null then S.all.State in Valid_Queue_Slot_State))
 
-       (for all I in Queue.Slots'Range =>
-          (if Queue.Slots (I) /= null then Queue.Slots (I).all.TID = I))
-
-       --  Transaction slots are never in certain states while they are being
-       --  held in Queue. In other states, the slot is held by a handle
-       --  instead.
-
-       and then
-         (for all S of Queue.Slots =>
-            (if S /= null
-             then S.all.State in Free | Request_Pending | Confirm_Pending))
-
-       --  Transactions in the Pending_Request state have a null Cfm_Token
-       --  (the Cfm_Token was moved to a Confirm_Promise) if and only if the
-       --  associated request requires a confirm primitive in response to the
-       --  request.
-
-       and then
-         (for all S of Queue.Slots =>
-            (if S /= null
-             then
-               (if S.all.State = Request_Pending
-                then
-                  (S.all.Cfm_Token = null) = Requires_Confirm (S.all.Request)
-                elsif S.all.State = Confirm_Pending
-                then S.all.Cfm_Token = null
-                elsif S.all.State = Free
-                then S.all.Cfm_Token /= null)))
-
-       --  If Has_Free_Slot is true, then there is at least one slot that is
-       --  in the Free state.
-
-       and then
-         (if Queue.Has_Free_Slot
-          then
-            (for some S of Queue.Slots =>
-               S /= null and then S.all.State = Free))
-
-       --  If a slot is in the Request_Pending state, then Next_Pending
-       --  references another slot that is also in the Request_Pending state.
-
-       and then
-         (for all S of Queue.Slots =>
-            (if S /= null and then S.all.State = Request_Pending
-             then
-               Queue.Slots (S.all.Next_Pending) /= null
-               and then
-                 Queue.Slots (S.all.Next_Pending).all.State = Request_Pending))
-
-       --  Has_Pending_Request is true if and only if there is at least one
-       --  slot in the Request_Pending state.
-
-       and then
-         (Queue.Has_Pending_Request
-          = (for some S of Queue.Slots =>
-               S /= null and then S.all.State = Request_Pending))
-
-       --  If Has_Pending_Request is true, then the slot referenced by
-       --  First_Pending and Last_Pending are in the Request_Pending state.
-
-       and then
-         (if Queue.Has_Pending_Request
-          then
-            Queue.Slots (Queue.First_Pending) /= null
-            and then Queue.Slots (Queue.Last_Pending) /= null
-            and then
-              Queue.Slots (Queue.First_Pending).all.State = Request_Pending
-            and then
-              Queue.Slots (Queue.Last_Pending).all.State = Request_Pending)
-
-       --  If a slot in the Request_Pending state is referenced by another
-       --  pending request, then it is not the first pending request.
-
-       and then
-         (for all I in Transaction_ID =>
-            (if Queue.Slots (I) /= null
-               and then Queue.Slots (I).all.State = Request_Pending
-               and then
-                 (for some J in Transaction_ID =>
-                    J /= I
-                    and then Queue.Slots (J) /= null
-                    and then Queue.Slots (J).all.State = Request_Pending
-                    and then Queue.Slots (J).all.Next_Pending = I)
-             then I /= Queue.First_Pending))
-
-       --  If a slot in the Request_Pending state references itself, then it is
-       --  the last slot.
-
-       and then
-         (for all I in Transaction_ID =>
-            (if Queue.Slots (I) /= null
-               and then Queue.Slots (I).all.State = Request_Pending
-               and then Queue.Slots (I).all.Next_Pending = I
-             then I = Queue.Last_Pending))
-
-       --  The last slot in the Request_Pending state references itself
-
-       and then
-         (if Queue.Has_Pending_Request
-          then
-            Queue.Slots (Queue.Last_Pending).Next_Pending = Queue.Last_Pending)
-
-       --  No other slot in the Request_Pending state references the first
-       --  pending request, except for itself.
-
-       and then
-         (for all I in Transaction_ID =>
-            (if Queue.Slots (I) /= null
-               and then Queue.Slots (I).all.State = Request_Pending
-               and then Queue.Slots (I).all.Next_Pending = Queue.First_Pending
-             then I = Queue.First_Pending and then I = Queue.Last_Pending))
-
-       --  A slot in the Request_Pending state is referenced by no more than
-       --  one other request.
-
-       and then
-         (for all I in Transaction_ID =>
-            (for all J in Transaction_ID =>
-               (if Queue.Slots (I) /= null
-                  and then Queue.Slots (J) /= null
-                  and then Queue.Slots (I).all.State = Request_Pending
-                  and then Queue.Slots (J).all.State = Request_Pending
-                  and then Queue.Slots (I).all.Next_Pending /= I
-                  and then Queue.Slots (J).all.Next_Pending /= J
-                  and then
-                    Queue.Slots (I).all.Next_Pending
-                    = Queue.Slots (J).all.Next_Pending
-                then I = J)))
-
-       --  A slot in the Confirm_Pending state has a valid confirm object
-
-       and then
-         (for all S of Queue.Slots =>
-            (if S /= null and then S.all.State = Confirm_Pending
-             then
-               Requires_Confirm (S.all.Request)
-               and then Valid_Confirm (S.all.Request, S.all.Confirm))));
+       and then P_Slot_Index_Matches_TID (Queue)
+       and then P_Cfm_Token_Present (Queue)
+       and then P_Has_Free_Slot_Valid (Queue)
+       and then P_Has_Pending_Request_Valid (Queue)
+       and then P_Confirm_Pending_Valid (Queue)
+       and then P_Pending_Requests_In_Queue (Queue));
 
    --------------
    -- Is_Empty --
@@ -587,7 +522,6 @@ is
       Handle.TD := null;
 
       Temp.all.State := Request_Pending;
-      Temp.all.Next_Pending := TID;
 
       if Requires_Confirm (Temp.all.Request) then
          Promise.Token := Temp.all.Cfm_Token;
@@ -598,17 +532,8 @@ is
 
       Queue.Slots (TID) := Temp;
 
-      --  Insert into the pending requests queue
-
-      if Queue.Has_Pending_Request then
-         Queue.Slots (Queue.Last_Pending).all.Next_Pending := TID;
-         Queue.Last_Pending := TID;
-
-      else
-         Queue.First_Pending := TID;
-         Queue.Last_Pending := TID;
-         Queue.Has_Pending_Request := True;
-      end if;
+      Queue.Has_Pending_Request := True;
+      LibSAP.Unique_Integer_Queues.Append (Queue.Pending_Queue, TID);
    end Send_Request;
 
    --------------------------
@@ -621,21 +546,13 @@ is
       TID : Transaction_ID;
    begin
       if Queue.Has_Pending_Request then
-         if Queue.Last_Pending = Queue.First_Pending then
+         LibSAP.Unique_Integer_Queues.Pop_Front (Queue.Pending_Queue, TID);
 
-            Queue.Slots (Queue.First_Pending).all.State := Request_Read;
-            Queue.Has_Pending_Request := False;
+         Queue.Has_Pending_Request :=
+           not LibSAP.Unique_Integer_Queues.Is_Empty (Queue.Pending_Queue);
 
-            Move
-              (Target => Handle.TD,
-               Source => Queue.Slots (Queue.First_Pending));
-         else
-            TID := Queue.First_Pending;
-            Queue.Slots (TID).all.State := Request_Read;
-            Queue.First_Pending := Queue.Slots (TID).all.Next_Pending;
-
-            Move (Target => Handle.TD, Source => Queue.Slots (TID));
-         end if;
+         Queue.Slots (TID).all.State := Request_Read;
+         Move (Target => Handle.TD, Source => Queue.Slots (TID));
       end if;
    end Try_Get_Next_Request;
 
@@ -760,12 +677,11 @@ is
          begin
             Memory_Holder.Slots (I) :=
               new Transaction_Data'
-                (TID          => I,
-                 Request      => <>,
-                 Confirm      => <>,
-                 State        => Free,
-                 Next_Pending => Transaction_ID'First,
-                 Cfm_Token    => Token);
+                (TID       => I,
+                 Request   => <>,
+                 Confirm   => <>,
+                 State     => Free,
+                 Cfm_Token => Token);
          end;
       end loop;
    end Allocate_Memory;

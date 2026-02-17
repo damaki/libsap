@@ -18,6 +18,8 @@
 --  its scope; the Service Provider and Service User must call the appropriate
 --  procedure to relinquish the handle back to the transaction queue.
 
+private with LibSAP.Unique_Integer_Queues;
+
 private generic
    type Request_Type is limited private;
    type Confirm_Type is limited private;
@@ -37,7 +39,7 @@ package LibSAP.Singleton_Transaction_Queues with
     Abstract_State => Single_Instance
 is
 
-   type Transaction_ID is new Positive range 1 .. Queue_Capacity;
+   subtype Transaction_ID is Positive range 1 .. Queue_Capacity;
 
    ---------------------
    -- Request Handles --
@@ -442,8 +444,6 @@ private
    type Transaction_Data_Access_Array is
      array (Transaction_ID) of Transaction_Data_Access;
 
-   type Transaction_ID_Array is array (Transaction_ID) of Transaction_ID;
-
    type Queue_Type is limited record
       Slots : Transaction_Data_Access_Array := [others => null];
       --  Holds the pointers to Transaction_Data objects.
@@ -459,15 +459,12 @@ private
       --  True when there is at least one transaction in Slots that is in
       --  the Request_Pending state.
 
-      First_Pending : Transaction_ID := Transaction_ID'First;
-      --  Index of the slot that contains the first Request_Pending transaction
-      --  in the queue.
-
-      Last_Pending : Transaction_ID := Transaction_ID'First;
-      --  Index of the slot that contains the last Request_Pending transaction
-      --  in the queue.
-
-   end record;
+      Pending_Queue : LibSAP.Unique_Integer_Queues.Queue_Type (Queue_Capacity);
+      --  Holds the indices of slots that contain pending requests, in FIFO
+      --  order.
+   end record
+   with
+     Ghost_Predicate => LibSAP.Unique_Integer_Queues.Is_Valid (Pending_Queue);
 
    --------------------------
    -- Can_Allocate_Request --
