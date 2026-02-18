@@ -84,7 +84,10 @@ is
    with
      Pre  => not Is_Null (Handle),
      Post => not Is_Null (Handle) and then Request_Ready (Handle);
-   --  Write to the request object held by Handle.
+   --  Write a request.
+   --
+   --  The request object is passed to the Build generic formal procedure,
+   --  which does the actual write.
    --
    --  This is a non-blocking operation if and only if Build is non-blocking.
 
@@ -97,6 +100,14 @@ is
        not Is_Null (Handle)
        and then Request_Ready (Handle)
        and then not Requires_Confirm (Handle);
+   --  Write a request that does not require a confirm.
+   --
+   --  The request object is passed to the Build generic formal procedure,
+   --  which does the actual write.
+   --
+   --  The postcondition of Build must contain: not Requires_Confirm (Request)
+   --
+   --  This is a non-blocking operation if and only if Build is non-blocking.
 
    generic
       with procedure Build (Request : out Request_Type);
@@ -107,6 +118,63 @@ is
        not Is_Null (Handle)
        and then Request_Ready (Handle)
        and then Requires_Confirm (Handle);
+   --  Write a request that requires a confirm.
+   --
+   --  The request object is passed to the Build generic formal procedure,
+   --  which does the actual write.
+   --
+   --  The postcondition of Build must contain: Requires_Confirm (Request)
+   --
+   --  This is a non-blocking operation if and only if Build is non-blocking.
+
+   generic
+      with procedure Build (Request : out Request_Type);
+      with function Precondition return Boolean;
+      with function Postcondition return Boolean;
+   procedure Build_Contextual_Request (Handle : in out Request_Handle)
+   with
+     Pre  => not Is_Null (Handle) and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and then Request_Ready (Handle)
+       and then Postcondition;
+   --  Same as Build_Request, but provides additional proof context to be
+   --  passed to and from the call to Build via a precondition and
+   --  postcondition.
+
+   generic
+      with procedure Build (Request : out Request_Type);
+      with function Precondition return Boolean;
+      with function Postcondition return Boolean;
+   procedure Build_Contextual_Request_No_Confirm
+     (Handle : in out Request_Handle)
+   with
+     Pre  => not Is_Null (Handle) and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and then Request_Ready (Handle)
+       and then not Requires_Confirm (Handle)
+       and then Postcondition;
+   --  Same as Build_Request_No_Confirm, but provides additional proof context
+   --  to be passed to and from the call to Build via a precondition and
+   --  postcondition.
+
+   generic
+      with procedure Build (Request : out Request_Type);
+      with function Precondition return Boolean;
+      with function Postcondition return Boolean;
+   procedure Build_Contextual_Request_With_Confirm
+     (Handle : in out Request_Handle)
+   with
+     Pre  => not Is_Null (Handle) and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and then Request_Ready (Handle)
+       and then Requires_Confirm (Handle)
+       and then Postcondition;
+   --  Same as Build_Request_With_Confirm, but provides additional proof
+   --  context to be passed to and from the call to Build via a precondition
+   --  and postcondition.
 
    ---------------------
    -- Confirm Promise --

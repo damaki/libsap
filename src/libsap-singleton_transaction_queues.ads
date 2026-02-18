@@ -114,6 +114,46 @@ is
        and then Request_Ready (Handle)
        and then Requires_Confirm (Handle);
 
+   generic
+      with procedure Build (Request : out Request_Type);
+      with function Precondition return Boolean;
+      with function Postcondition return Boolean;
+   procedure Build_Contextual_Request (Handle : in out Request_Handle)
+   with
+     Pre  => not Is_Null (Handle) and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and then Request_Ready (Handle)
+       and then Postcondition;
+
+   generic
+      with procedure Build (Request : out Request_Type);
+      with function Precondition return Boolean;
+      with function Postcondition return Boolean;
+   procedure Build_Contextual_Request_No_Confirm
+     (Handle : in out Request_Handle)
+   with
+     Pre  => not Is_Null (Handle) and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and then Request_Ready (Handle)
+       and then not Requires_Confirm (Handle)
+       and then Postcondition;
+
+   generic
+      with procedure Build (Request : out Request_Type);
+      with function Precondition return Boolean;
+      with function Postcondition return Boolean;
+   procedure Build_Contextual_Request_With_Confirm
+     (Handle : in out Request_Handle)
+   with
+     Pre  => not Is_Null (Handle) and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and then Request_Ready (Handle)
+       and then Requires_Confirm (Handle)
+       and then Postcondition;
+
    ---------------------
    -- Confirm Promise --
    ---------------------

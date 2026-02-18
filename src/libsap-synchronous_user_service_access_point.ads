@@ -86,7 +86,10 @@ is
    with
      Pre  => not Is_Null (Handle),
      Post => not Is_Null (Handle) and then Indication_Ready (Handle);
-   --  Write to the indication object held by Handle.
+   --  Write an indication.
+   --
+   --  The indication object is passed to the Build generic formal procedure,
+   --  which does the actual write.
    --
    --  This is a non-blocking operation if and only if Build is non-blocking.
 
@@ -99,6 +102,14 @@ is
        not Is_Null (Handle)
        and then Indication_Ready (Handle)
        and then not Requires_Response (Handle);
+   --  Write an indication that does not require a confirm.
+   --
+   --  The indication object is passed to the Build generic formal procedure,
+   --  which does the actual write.
+   --
+   --  The postcondition of Build must contain: not Requires_Confirm (Request)
+   --
+   --  This is a non-blocking operation if and only if Build is non-blocking.
 
    generic
       with procedure Build (Indication : out Indication_Type);
@@ -109,6 +120,63 @@ is
        not Is_Null (Handle)
        and then Indication_Ready (Handle)
        and then Requires_Response (Handle);
+   --  Write an indication that requires a confirm.
+   --
+   --  The indication object is passed to the Build generic formal procedure,
+   --  which does the actual write.
+   --
+   --  The postcondition of Build must contain: Requires_Confirm (Request)
+   --
+   --  This is a non-blocking operation if and only if Build is non-blocking.
+
+   generic
+      with procedure Build (Indication : out Indication_Type);
+      with function Precondition return Boolean;
+      with function Postcondition return Boolean;
+   procedure Build_Contextual_Indication (Handle : in out Indication_Handle)
+   with
+     Pre  => not Is_Null (Handle) and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and then Indication_Ready (Handle)
+       and then Postcondition;
+   --  Same as Build_Indication, but provides additional proof context to be
+   --  passed to and from the call to Build via a precondition and
+   --  postcondition.
+
+   generic
+      with procedure Build (Indication : out Indication_Type);
+      with function Precondition return Boolean;
+      with function Postcondition return Boolean;
+   procedure Build_Contextual_Indication_No_Response
+     (Handle : in out Indication_Handle)
+   with
+     Pre  => not Is_Null (Handle) and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and then Indication_Ready (Handle)
+       and then not Requires_Response (Handle)
+       and then Postcondition;
+   --  Same as Build_Indication_No_Confirm, but provides additional proof
+   --  context to be passed to and from the call to Build via a precondition
+   --  and postcondition.
+
+   generic
+      with procedure Build (Indication : out Indication_Type);
+      with function Precondition return Boolean;
+      with function Postcondition return Boolean;
+   procedure Build_Contextual_Indication_With_Response
+     (Handle : in out Indication_Handle)
+   with
+     Pre  => not Is_Null (Handle) and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and then Indication_Ready (Handle)
+       and then Requires_Response (Handle)
+       and then Postcondition;
+   --  Same as Build_Indication_With_Confirm, but provides additional proof
+   --  context to be passed to and from the call to Build via a precondition
+   --  and postcondition.
 
    ----------------------
    -- Response Promise --

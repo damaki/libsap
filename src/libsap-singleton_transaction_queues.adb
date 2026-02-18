@@ -312,6 +312,57 @@ is
 
    end Build_Request_With_Confirm;
 
+   ------------------------------
+   -- Build_Contextual_Request --
+   ------------------------------
+
+   procedure Build_Contextual_Request (Handle : in out Request_Handle) is
+   begin
+      Handle.TD.all.State := Request_Written;
+
+      pragma Assert (Precondition);
+
+      Build (Handle.TD.all.Request);
+
+      pragma Assert (Postcondition);
+   end Build_Contextual_Request;
+
+   -----------------------------------------
+   -- Build_Contextual_Request_No_Confirm --
+   -----------------------------------------
+
+   procedure Build_Contextual_Request_No_Confirm
+     (Handle : in out Request_Handle) is
+   begin
+      Handle.TD.all.State := Request_Written;
+
+      pragma Assert (Precondition);
+
+      Build (Handle.TD.all.Request);
+
+      pragma Assert (Postcondition);
+      pragma Assert (not Requires_Confirm (Handle.TD.all.Request));
+
+   end Build_Contextual_Request_No_Confirm;
+
+   -------------------------------------------
+   -- Build_Contextual_Request_With_Confirm --
+   -------------------------------------------
+
+   procedure Build_Contextual_Request_With_Confirm
+     (Handle : in out Request_Handle) is
+   begin
+      Handle.TD.all.State := Request_Written;
+
+      pragma Assert (Precondition);
+
+      Build (Handle.TD.all.Request);
+
+      pragma Assert (Postcondition);
+      pragma Assert (Requires_Confirm (Handle.TD.all.Request));
+
+   end Build_Contextual_Request_With_Confirm;
+
    ----------
    -- Move --
    ----------

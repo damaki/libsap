@@ -412,6 +412,52 @@ is
       Build_Wrapper (Handle.Handle);
    end Build_Request_With_Confirm;
 
+   ------------------------------
+   -- Build_Contextual_Request --
+   ------------------------------
+
+   procedure Build_Contextual_Request (Handle : in out Request_Handle) is
+      procedure Build_Wrapper is new
+        STQ.Build_Contextual_Request
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Build_Wrapper (Handle.Handle);
+   end Build_Contextual_Request;
+
+   -----------------------------------------
+   -- Build_Contextual_Request_No_Confirm --
+   -----------------------------------------
+
+   procedure Build_Contextual_Request_No_Confirm
+     (Handle : in out Request_Handle)
+   is
+      procedure Build_Wrapper is new
+        STQ.Build_Contextual_Request_No_Confirm
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Build_Wrapper (Handle.Handle);
+   end Build_Contextual_Request_No_Confirm;
+
+   -------------------------------------------
+   -- Build_Contextual_Request_With_Confirm --
+   -------------------------------------------
+
+   procedure Build_Contextual_Request_With_Confirm
+     (Handle : in out Request_Handle)
+   is
+      procedure Build_Wrapper is new
+        STQ.Build_Contextual_Request_With_Confirm
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Build_Wrapper (Handle.Handle);
+   end Build_Contextual_Request_With_Confirm;
+
    ------------------
    -- Send_Request --
    ------------------

@@ -417,6 +417,52 @@ is
       Build_Wrapper (Handle.Handle);
    end Build_Indication_With_Response;
 
+   ---------------------------------
+   -- Build_Contextual_Indication --
+   ---------------------------------
+
+   procedure Build_Contextual_Indication (Handle : in out Indication_Handle) is
+      procedure Build_Wrapper is new
+        STQ.Build_Contextual_Request
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Build_Wrapper (Handle.Handle);
+   end Build_Contextual_Indication;
+
+   ---------------------------------------------
+   -- Build_Contextual_Indication_No_Response --
+   ---------------------------------------------
+
+   procedure Build_Contextual_Indication_No_Response
+     (Handle : in out Indication_Handle)
+   is
+      procedure Build_Wrapper is new
+        STQ.Build_Contextual_Request_No_Confirm
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Build_Wrapper (Handle.Handle);
+   end Build_Contextual_Indication_No_Response;
+
+   -----------------------------------------------
+   -- Build_Contextual_Indication_With_Response --
+   -----------------------------------------------
+
+   procedure Build_Contextual_Indication_With_Response
+     (Handle : in out Indication_Handle)
+   is
+      procedure Build_Wrapper is new
+        STQ.Build_Contextual_Request_With_Confirm
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Build_Wrapper (Handle.Handle);
+   end Build_Contextual_Indication_With_Response;
+
    ---------------------
    -- Send_Indication --
    ---------------------
