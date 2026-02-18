@@ -33,7 +33,8 @@ is
    with
      Post =>
        Is_Empty'Result
-       = (for all E in Element_Type => not Contains (Queue, E));
+       = (for all E in Element_Type range 1 .. Queue.Capacity =>
+            not Contains (Queue, E));
 
    procedure Pop_Front (Queue : in out Queue_Type; Item : out Element_Type)
    with
@@ -45,7 +46,7 @@ is
        and then not Contains (Queue, Item)
        and then Item in 1 .. Queue.Capacity
        and then
-         (for all I in Element_Type =>
+         (for all I in 1 .. Queue.Capacity =>
             (Contains (Queue, I)
              = (I /= Item and then Contains (Queue'Old, I))));
 
@@ -60,7 +61,7 @@ is
        Is_Valid (Queue)
        and then Contains (Queue, Item)
        and then
-         (for all I in Element_Type =>
+         (for all I in 1 .. Queue.Capacity =>
             (Contains (Queue, I) = Contains (Queue'Old, I) or else I = Item));
 
 private
