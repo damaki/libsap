@@ -1,7 +1,7 @@
 with "config/libsap_config.gpr";
 project LibSAP is
 
-   for Library_Name use "libsap";
+   for Library_Name use "sap";
    for Library_Version use Project'Library_Name & ".so." & Libsap_Config.Crate_Version;
 
    for Source_Dirs use ("src/", "config/");
