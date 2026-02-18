@@ -57,12 +57,18 @@ begin
            (Kind => ECHO_Req, ECHO_Req => (Value_To_Echo => Value_To_Echo));
       end Build_ECHO_Request;
 
-      procedure Build_And_Send_Request is new
-        Service_Provider.SAP.Build_And_Send_Request_With_Confirm
+      procedure Build_Request is new
+        Service_Provider.SAP.Build_Request_With_Confirm
           (Build_ECHO_Request);
 
+      Req_Handle : Service_Provider.SAP.Request_Handle;
+
    begin
-      Build_And_Send_Request (Cfm_Promise);
+      Service_Provider.SAP.Allocate_Request (Req_Handle);
+      Build_Request (Req_Handle);
+      Service_Provider.SAP.Send_Request (Req_Handle, Cfm_Promise);
+
+      pragma Unreferenced (Req_Handle);
    end;
 
    ----------------------------------------

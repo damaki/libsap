@@ -196,33 +196,6 @@ is
       STQ.Send_Request (Queue, Handle.Handle, Promise.Handle);
    end Send_Indication;
 
-   -----------------------------------
-   -- Try_Build_And_Send_Indication --
-   -----------------------------------
-
-   procedure Try_Build_And_Send_Indication
-     (Promise : in out Response_Promise; Was_Sent : out Boolean)
-   is
-
-      procedure Build_Indication_Wrapper is new Build_Indication (Build);
-
-      Handle : Indication_Handle;
-
-   begin
-      Try_Allocate_Indication (Handle);
-
-      if Is_Null (Handle) then
-         Was_Sent := False;
-      else
-         Was_Sent := True;
-
-         Build_Indication_Wrapper (Handle);
-         Send_Indication (Handle, Promise);
-
-         pragma Unreferenced (Handle);
-      end if;
-   end Try_Build_And_Send_Indication;
-
    -----------------------------
    -- Try_Get_Next_Indication --
    -----------------------------

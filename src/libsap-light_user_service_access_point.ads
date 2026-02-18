@@ -330,27 +330,6 @@ is
    --
    --  This is a non-blocking operation.
 
-   generic
-      with procedure Build (Indication : out Indication_Type);
-   procedure Try_Build_And_Send_Indication
-     (Promise : in out Response_Promise; Was_Sent : out Boolean)
-   with
-     Pre  => Is_Null (Promise),
-     Post => (if not Was_Sent then Is_Null (Promise));
-   --  Tries to allocate an indication, then builds the indication and sends it
-   --  to the Service User.
-   --
-   --  If the allocation step fails, then Was_Sent is set to False and no
-   --  indication is sent. Otherwise, Was_Sent is set to True and the
-   --  indication is sent.
-   --
-   --  If the indication expects to receive a response, then Promise is
-   --  non-null and is used by the caller to get the response in the future
-   --  when it is ready. Otherwise, if no response primitive is required, then
-   --  Promise is set to null.
-   --
-   --  This is a potentially blocking operation.
-
    procedure Try_Get_Response
      (Handle : in out Response_Handle; Promise : in out Response_Promise)
    with

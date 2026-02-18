@@ -316,25 +316,6 @@ is
    --  This frees up the resources held by Handle without sending the request
    --  to the Service Provider.
 
-   generic
-      with procedure Build (Request : out Request_Type);
-   procedure Try_Build_And_Send_Request
-     (Promise : in out Confirm_Promise; Was_Sent : out Boolean)
-   with
-     Pre  => Is_Null (Promise),
-     Post => (if not Was_Sent then Is_Null (Promise));
-   --  Tries to allocate a request, then builds the request and sends it to the
-   --  Service Provider.
-   --
-   --  If the allocation step fails, then Was_Sent is set to False and no
-   --  request is sent. Otherwise, Was_Sent is set to True and the request is
-   --  sent.
-   --
-   --  If the request expects to receive a confirm primitive in response, then
-   --  Promise is non-null and is used by the caller to get the confirm in the
-   --  future when it is ready. Otherwise, if no confirm primitive is required,
-   --  then Promise is set to null.
-
    procedure Try_Get_Confirm
      (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise)
    with

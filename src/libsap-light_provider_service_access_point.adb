@@ -194,33 +194,6 @@ is
       STQ.Send_Request (Queue, Handle.Handle, Promise.Handle);
    end Send_Request;
 
-   --------------------------------
-   -- Try_Build_And_Send_Request --
-   --------------------------------
-
-   procedure Try_Build_And_Send_Request
-     (Promise : in out Confirm_Promise; Was_Sent : out Boolean)
-   is
-
-      procedure Build_Request_Wrapper is new Build_Request (Build);
-
-      Handle : Request_Handle;
-
-   begin
-      Try_Allocate_Request (Handle);
-
-      if Is_Null (Handle) then
-         Was_Sent := False;
-      else
-         Was_Sent := True;
-
-         Build_Request_Wrapper (Handle);
-         Send_Request (Handle, Promise);
-
-         pragma Unreferenced (Handle);
-      end if;
-   end Try_Build_And_Send_Request;
-
    --------------------------
    -- Try_Get_Next_Request --
    --------------------------
