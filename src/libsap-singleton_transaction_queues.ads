@@ -506,20 +506,6 @@ private
    with
      Ghost_Predicate => LibSAP.Unique_Integer_Queues.Is_Valid (Pending_Queue);
 
-   --------------------------
-   -- Can_Allocate_Request --
-   --------------------------
-
-   function Can_Allocate_Request (Queue : Queue_Type) return Boolean
-   is (Queue.Has_Free_Slot);
-
-   -------------------------
-   -- Has_Pending_Request --
-   -------------------------
-
-   function Has_Pending_Request (Queue : Queue_Type) return Boolean
-   is (Queue.Has_Pending_Request);
-
    ------------------------
    -- Transaction_Handle --
    ------------------------

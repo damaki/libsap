@@ -212,6 +212,20 @@ is
        and then Requires_Confirm (TD.all.Request)
        and then Valid_Confirm (TD.all.Request, TD.all.Confirm));
 
+   --------------------------
+   -- Can_Allocate_Request --
+   --------------------------
+
+   function Can_Allocate_Request (Queue : Queue_Type) return Boolean
+   is (Queue.Has_Free_Slot);
+
+   -------------------------
+   -- Has_Pending_Request --
+   -------------------------
+
+   function Has_Pending_Request (Queue : Queue_Type) return Boolean
+   is (Queue.Has_Pending_Request);
+
    -------------
    -- Get_TID --
    -------------
