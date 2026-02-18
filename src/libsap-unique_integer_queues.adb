@@ -117,7 +117,7 @@ is
    --------------------
 
    procedure Lemma_Not_Full (Queue : Queue_Type; Item : Element_Type) is
-      Found : Boolean_Array (1 .. Queue.Capacity) := [others => False];
+      pragma Unreferenced (Item);
    begin
       if Length (Queue) = Queue.Capacity then
          Lemma_Full_Queue_Contains_All (Queue);
