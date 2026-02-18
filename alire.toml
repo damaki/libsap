@@ -5,7 +5,7 @@ version = "0.1.0-dev"
 authors = ["Daniel King"]
 maintainers = ["Daniel King <damaki.gh@gmail.com>"]
 maintainers-logins = ["damaki"]
-licenses = "MIT OR Apache-2.0 WITH LLVM-exception"
+licenses = "Apache-2.0 WITH LLVM-exception"
 website = ""
 tags = []
 
