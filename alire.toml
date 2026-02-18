@@ -7,7 +7,7 @@ maintainers = ["Daniel King <damaki.gh@gmail.com>"]
 maintainers-logins = ["damaki"]
 licenses = "Apache-2.0 WITH LLVM-exception"
 website = ""
-tags = []
+tags = ["protocol", "protocols", "nostd", "spark"]
 
 [build-switches]
 "*".Ada_Version = "Ada2022"
