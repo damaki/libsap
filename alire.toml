@@ -11,3 +11,6 @@ tags = []
 
 [build-switches]
 "*".Ada_Version = "Ada2022"
+
+[configuration.variables]
+Tasking_Supported = { type = "Boolean", default = true }

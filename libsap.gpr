@@ -4,7 +4,15 @@ project LibSAP is
    for Library_Name use "sap";
    for Library_Version use Project'Library_Name & ".so." & Libsap_Config.Crate_Version;
 
-   for Source_Dirs use ("src/", "config/");
+   Tasking_Sources := ();
+   case Libsap_Config.Tasking_Supported is
+      when "True" =>
+         Tasking_Sources := ("src/tasking/");
+      when others =>
+         Tasking_Sources := ();
+   end case;
+
+   for Source_Dirs use ("src/", "config/") & Tasking_Sources;
    for Object_Dir use "obj/" & Libsap_Config.Build_Profile;
    for Create_Missing_Dirs use "True";
    for Library_Dir use "lib";
