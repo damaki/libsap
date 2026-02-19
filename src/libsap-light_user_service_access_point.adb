@@ -15,10 +15,10 @@ pragma Partition_Elaboration_Policy (Sequential);
 package body LibSAP.Light_User_Service_Access_Point
   with
     Refined_State =>
-      (Transaction_Queue => Queue, Queue_Memory => STQ.Single_Instance)
+      (Transaction_Queue => Queue, Transaction_Pool => STQ.Transaction_Pool)
 is
 
-   Queue : STQ.Valid_Queue_Type;
+   Queue : STQ.Transaction_Queue_Type;
 
    ------------------------
    -- Response_Reference --
@@ -96,7 +96,7 @@ is
 
    procedure Abort_Indication (Handle : in out Indication_Handle) is
    begin
-      STQ.Abort_Request (Queue, Handle.Handle);
+      STQ.Abort_Request (Handle.Handle);
    end Abort_Indication;
 
    -----------------------------
@@ -105,7 +105,7 @@ is
 
    procedure Try_Allocate_Indication (Handle : in out Indication_Handle) is
    begin
-      STQ.Try_Allocate_Request (Queue, Handle.Handle);
+      STQ.Try_Allocate_Request (Handle.Handle);
    end Try_Allocate_Indication;
 
    ----------------------
@@ -211,7 +211,7 @@ is
 
    procedure Indication_Completed (Handle : in out Service_Handle) is
    begin
-      STQ.Request_Completed (Queue, Handle.Handle);
+      STQ.Request_Completed (Handle.Handle);
    end Indication_Completed;
 
    -------------------
@@ -220,7 +220,7 @@ is
 
    procedure Send_Response (Handle : in out Service_Handle) is
    begin
-      STQ.Send_Confirm (Queue, Handle.Handle);
+      STQ.Send_Confirm (Handle.Handle);
    end Send_Response;
 
    ------------------------
@@ -267,7 +267,7 @@ is
 
    procedure Release (Handle : in out Response_Handle) is
    begin
-      STQ.Release (Queue, Handle.Handle);
+      STQ.Release (Handle.Handle);
    end Release;
 
    --------------------
@@ -288,9 +288,7 @@ is
    procedure Try_Get_Response
      (Handle : in out Response_Handle; Promise : in out Response_Promise) is
    begin
-      STQ.Try_Get_Confirm (Queue, Handle.Handle, Promise.Handle);
+      STQ.Try_Get_Confirm (Handle.Handle, Promise.Handle);
    end Try_Get_Response;
 
-begin
-   STQ.Claim_Single_Instance (Queue);
 end LibSAP.Light_User_Service_Access_Point;

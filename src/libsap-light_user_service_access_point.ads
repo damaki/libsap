@@ -25,7 +25,7 @@ generic
 
 package LibSAP.Light_User_Service_Access_Point with
     Elaborate_Body,
-    Abstract_State => (Transaction_Queue, Queue_Memory)
+    Abstract_State => (Transaction_Queue, (Transaction_Pool with Synchronous))
 is
 
    type Transaction_ID is new Positive range 1 .. Queue_Capacity;
@@ -289,7 +289,7 @@ is
    procedure Try_Allocate_Indication (Handle : in out Indication_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    => Is_Null (Handle),
      Post   => (if not Is_Null (Handle) then not Indication_Ready (Handle));
    --  Try to allocate a new indication object.
@@ -320,7 +320,7 @@ is
    procedure Abort_Indication (Handle : in out Indication_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    => not Is_Null (Handle),
      Post   => Is_Null (Handle);
    --  Abort a indication.
@@ -334,7 +334,7 @@ is
      (Handle : in out Response_Handle; Promise : in out Response_Promise)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    => Is_Null (Handle) and then not Is_Null (Promise),
      Post   => Is_Null (Handle) = not Is_Null (Promise);
    --  Try to get the pending response primitive from a Promise.
@@ -349,7 +349,7 @@ is
    procedure Release (Handle : in out Response_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    => not Is_Null (Handle),
      Post   => Is_Null (Handle);
    --  Release a response handle.
@@ -386,7 +386,7 @@ is
 
    procedure Indication_Completed (Handle : in out Service_Handle)
    with
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    => not Is_Null (Handle) and then not Requires_Response (Handle),
      Post   => Is_Null (Handle);
    --  Release a service handle.
@@ -399,7 +399,7 @@ is
 
    procedure Send_Response (Handle : in out Service_Handle)
    with
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    =>
        not Is_Null (Handle)
        and then Requires_Response (Handle)
@@ -458,7 +458,7 @@ private
         Queue_Capacity   => Queue_Capacity,
         Requires_Confirm => Requires_Response,
         Valid_Confirm    => Valid_Response);
-   pragma Part_Of (Queue_Memory);
+   pragma Part_Of (Transaction_Pool);
 
    type Indication_Handle is limited record
       Handle : STQ.Request_Handle;

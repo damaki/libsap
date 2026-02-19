@@ -119,8 +119,9 @@ is
    --  primitives to identify the origin of the request, then the Service
    --  Provider could notify that specific user when it posts a confirmation.
    --
-   --  In this example, we an array of protected objects (one per Service User)
-   --  that waits for a set of specific transactions to be completed.
+   --  In this example, we instead use an array of protected objects
+   --  (one per Service User) that waits for a set of specific transactions to
+   --  be completed.
 
    type Boolean_Array is array (SAP.Transaction_ID) of Boolean with Pack;
 

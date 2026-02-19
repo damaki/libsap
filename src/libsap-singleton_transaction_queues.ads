@@ -18,7 +18,7 @@
 --  its scope; the Service Provider and Service User must call the appropriate
 --  procedure to relinquish the handle back to the transaction queue.
 
-private with LibSAP.Unique_Integer_Queues;
+private with LibSAP.Pointer_Queues;
 
 private generic
    type Request_Type is limited private;
@@ -36,7 +36,7 @@ private generic
    --  Returns True if the Confirm object is valid for the given Request
 package LibSAP.Singleton_Transaction_Queues with
     Elaborate_Body,
-    Abstract_State => Single_Instance
+    Abstract_State => (Transaction_Pool with Synchronous)
 is
 
    subtype Transaction_ID is Positive range 1 .. Queue_Capacity;
@@ -260,6 +260,7 @@ is
    procedure Move
      (Target : in out Service_Handle; Source : in out Service_Handle)
    with
+     Inline,
      Global => null,
      Pre    => Is_Null (Target) and not Is_Null (Source),
      Post   =>
@@ -281,124 +282,64 @@ is
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
        and Has_Valid_Confirm (Handle);
 
-   ----------------
-   -- Queue_Type --
-   ----------------
+   ----------------------------
+   -- Transaction_Queue_Type --
+   ----------------------------
 
-   type Queue_Type is limited private
+   type Transaction_Queue_Type is limited private
    with
      Default_Initial_Condition =>
-       Is_Valid (Queue_Type) and then Is_Empty (Queue_Type);
-
-   function Is_Valid (Queue : Queue_Type) return Boolean
-   with Ghost, Global => null;
-   --  Returns True if the queue is in a valid state
-
-   function Is_Empty (Queue : Queue_Type) return Boolean
-   with
-     Global => null,
-     Post   =>
-       (if Is_Empty'Result and then Is_Valid (Queue)
-        then
-          not Can_Allocate_Request (Queue)
-          and then not Has_Pending_Request (Queue));
-
-   subtype Valid_Queue_Type is Queue_Type
-   with Ghost_Predicate => Is_Valid (Valid_Queue_Type);
+       not Has_Pending_Request (Transaction_Queue_Type);
 
    -----------------------------
    -- Service User Operations --
    -----------------------------
 
-   function Can_Allocate_Request (Queue : Queue_Type) return Boolean
-   with Global => null;
-   --  Returns True if there are free resources for the Service User to
-   --  allocate a new request.
-
-   function Has_Pending_Request (Queue : Queue_Type) return Boolean
+   function Has_Pending_Request (Queue : Transaction_Queue_Type) return Boolean
    with Global => null;
    --  Returns True if there is at least one pending request for the
    --  Service Provider.
 
-   procedure Try_Allocate_Request
-     (Queue : in out Queue_Type; Handle : in out Request_Handle)
+   procedure Try_Allocate_Request (Handle : in out Request_Handle)
    with
-     Global         => null,
-     Pre            => Is_Valid (Queue) and then Is_Null (Handle),
-     Post           =>
-       Is_Valid (Queue)
-       and (Has_Pending_Request (Queue) = Has_Pending_Request (Queue)'Old),
-     Contract_Cases =>
-       (not Can_Allocate_Request (Queue) => Is_Null (Handle),
-        others                           =>
-          not Is_Null (Handle) and then not Request_Ready (Handle));
+     Global => (In_Out => Transaction_Pool),
+     Pre    => Is_Null (Handle),
+     Post   => (if not Is_Null (Handle) then not Request_Ready (Handle));
 
-   procedure Abort_Request
-     (Queue : in out Queue_Type; Handle : in out Request_Handle)
+   procedure Abort_Request (Handle : in out Request_Handle)
    with
-     Global => null,
-     Pre    => Is_Valid (Queue) and then not Is_Null (Handle),
-     Post   =>
-       Is_Valid (Queue)
-       and Is_Null (Handle)
-       and Can_Allocate_Request (Queue)
-       and (Has_Pending_Request (Queue) = Has_Pending_Request (Queue)'Old);
+     Global => (In_Out => Transaction_Pool),
+     Pre    => not Is_Null (Handle),
+     Post   => Is_Null (Handle);
 
    procedure Send_Request
-     (Queue   : in out Queue_Type;
+     (Queue   : in out Transaction_Queue_Type;
       Handle  : in out Request_Handle;
       Promise : in out Confirm_Promise)
    with
      Global         => null,
      Pre            =>
-       Is_Valid (Queue)
-       and then not Is_Null (Handle)
+       not Is_Null (Handle)
        and then Is_Null (Promise)
        and then Request_Ready (Handle),
-     Post           =>
-       Is_Valid (Queue)
-       and Is_Null (Handle)
-       and Has_Pending_Request (Queue)
-       and (Can_Allocate_Request (Queue) = Can_Allocate_Request (Queue)'Old),
+     Post           => Is_Null (Handle) and Has_Pending_Request (Queue),
      Contract_Cases =>
        (Requires_Confirm (Handle) => not Is_Null (Promise),
         others                    => Is_Null (Promise));
 
-   function Has_Pending_Confirm
-     (Queue : Queue_Type; Promise : Confirm_Promise) return Boolean
-   with Inline, Global => null, Pre => not Is_Null (Promise);
-
    procedure Try_Get_Confirm
-     (Queue   : in out Queue_Type;
-      Handle  : in out Confirm_Handle;
-      Promise : in out Confirm_Promise)
+     (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise)
    with
      Inline,
-     Global         => null,
-     Pre            =>
-       Is_Valid (Queue)
-       and then Is_Null (Handle)
-       and then not Is_Null (Promise),
-     Post           =>
-       Is_Valid (Queue)
-       and Can_Allocate_Request (Queue) = Can_Allocate_Request (Queue)'Old
-       and Has_Pending_Request (Queue) = Has_Pending_Request (Queue)'Old,
-     Contract_Cases =>
-       (Has_Pending_Confirm (Queue, Promise) =>
-          Is_Null (Handle) = not Is_Null (Promise),
-        others                               =>
-          Is_Null (Handle) and then not Is_Null (Promise));
+     Global => (In_Out => Transaction_Pool),
+     Pre    => Is_Null (Handle) and then not Is_Null (Promise),
+     Post   => Is_Null (Handle) = not Is_Null (Promise);
 
-   procedure Release
-     (Queue : in out Queue_Type; Handle : in out Confirm_Handle)
+   procedure Release (Handle : in out Confirm_Handle)
    with
-     Global => null,
-     Pre    => Is_Valid (Queue) and then not Is_Null (Handle),
-     Post   =>
-       Is_Valid (Queue)
-       and Is_Null (Handle)
-       and Can_Allocate_Request (Queue)
-       and Has_Pending_Request (Queue) = Has_Pending_Request (Queue)'Old;
+     Global => (In_Out => Transaction_Pool),
+     Pre    => not Is_Null (Handle),
+     Post   => Is_Null (Handle);
 
    procedure New_Request
      (Cfm_Handle : in out Confirm_Handle; Req_Handle : in out Request_Handle)
@@ -412,62 +353,28 @@ is
    ------------------------
 
    procedure Try_Get_Next_Request
-     (Queue : in out Queue_Type; Handle : in out Service_Handle)
+     (Queue : in out Transaction_Queue_Type; Handle : in out Service_Handle)
    with
      Global         => null,
-     Pre            => Is_Valid (Queue) and then Is_Null (Handle),
-     Post           =>
-       Is_Valid (Queue)
-       and (Can_Allocate_Request (Queue) = Can_Allocate_Request (Queue)'Old),
+     Pre            => Is_Null (Handle),
      Contract_Cases =>
        (not Has_Pending_Request (Queue) => Is_Null (Handle),
         others                          => not Is_Null (Handle));
 
-   procedure Send_Confirm
-     (Queue : in out Queue_Type; Handle : in out Service_Handle)
+   procedure Send_Confirm (Handle : in out Service_Handle)
    with
-     Global => null,
+     Global => (In_Out => Transaction_Pool),
      Pre    =>
-       Is_Valid (Queue)
-       and then not Is_Null (Handle)
+       not Is_Null (Handle)
        and then Requires_Confirm (Handle)
        and then Has_Valid_Confirm (Handle),
-     Post   =>
-       Is_Valid (Queue)
-       and Is_Null (Handle)
-       and Can_Allocate_Request (Queue) = Can_Allocate_Request (Queue)'Old
-       and Has_Pending_Request (Queue) = Has_Pending_Request (Queue)'Old;
+     Post   => Is_Null (Handle);
 
-   procedure Request_Completed
-     (Queue : in out Queue_Type; Handle : in out Service_Handle)
+   procedure Request_Completed (Handle : in out Service_Handle)
    with
-     Global => null,
-     Pre    =>
-       Is_Valid (Queue)
-       and then not Is_Null (Handle)
-       and then not Requires_Confirm (Handle),
-     Post   =>
-       Is_Valid (Queue)
-       and Is_Null (Handle)
-       and Can_Allocate_Request (Queue)
-       and Has_Pending_Request (Queue) = Has_Pending_Request (Queue)'Old;
-
-   ------------------------
-   -- Singleton Instance --
-   ------------------------
-
-   procedure Claim_Single_Instance (Queue : in out Queue_Type)
-   with
-     Global => (In_Out => Single_Instance),
-     Pre    => Is_Valid (Queue) and then Is_Empty (Queue),
-     Post   => Is_Valid (Queue);
-   --  Claim the single queue instance.
-   --
-   --  This moves the memory allocated for the singleton into Queue.
-   --
-   --  Note that only the first call to this procedure will actually get the
-   --  memory. The singleton is empty after the first call, so any subsequent
-   --  calls will get an empty queue.
+     Global => (In_Out => Transaction_Pool),
+     Pre    => not Is_Null (Handle) and then not Requires_Confirm (Handle),
+     Post   => Is_Null (Handle);
 
 private
 
@@ -476,35 +383,34 @@ private
    --  package body can allocate them.
 
    type Transaction_Data;
-   type Transaction_Data_Access is access Transaction_Data;
+   type Transaction_Data_Access is access all Transaction_Data;
 
    type Confirm_Promise_Token;
    type Confirm_Promise_Token_Access is access Confirm_Promise_Token;
 
-   type Transaction_Data_Access_Array is
-     array (Transaction_ID) of Transaction_Data_Access;
+   function Pending_Request_Predicate
+     (TD : not null Transaction_Data_Access) return Boolean;
 
-   type Queue_Type is limited record
-      Slots : Transaction_Data_Access_Array := [others => null];
-      --  Holds the pointers to Transaction_Data objects.
-      --
-      --  Each slot can only point to the transaction object whose TID is equal
-      --  to the slot index. This is needed to ensure that
+   subtype Pending_Request_Transaction_Data_Access is Transaction_Data_Access
+   with
+     Predicate =>
+       (if Pending_Request_Transaction_Data_Access /= null
+        then
+          Pending_Request_Predicate (Pending_Request_Transaction_Data_Access));
 
-      Has_Free_Slot : Boolean := False;
-      --  True when there is at least one transaction in Slots that is in
-      --  the Free state.
+   package Transaction_Data_Access_Queues is new
+     LibSAP.Pointer_Queues
+       (Transaction_Data,
+        Pending_Request_Transaction_Data_Access,
+        Queue_Capacity);
+   package TDAQ renames Transaction_Data_Access_Queues;
 
-      Has_Pending_Request : Boolean := False;
-      --  True when there is at least one transaction in Slots that is in
-      --  the Request_Pending state.
-
-      Pending_Queue : LibSAP.Unique_Integer_Queues.Queue_Type (Queue_Capacity);
+   type Transaction_Queue_Type is limited record
+      Pending_Queue : TDAQ.Queue_Type;
       --  Holds the indices of slots that contain pending requests, in FIFO
       --  order.
    end record
-   with
-     Ghost_Predicate => LibSAP.Unique_Integer_Queues.Is_Valid (Pending_Queue);
+   with Ghost_Predicate => TDAQ.Is_Valid (Pending_Queue);
 
    ------------------------
    -- Transaction_Handle --

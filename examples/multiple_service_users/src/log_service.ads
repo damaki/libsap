@@ -51,7 +51,7 @@ is
         Requires_Confirm => Requires_Confirm,
         Valid_Confirm    => Valid_Confirm,
         Priority         => System.Priority'Last,
-        Queue_Capacity   => 10);
+        Queue_Capacity   => 20);
 
    procedure Log_Message (Message : String)
    with

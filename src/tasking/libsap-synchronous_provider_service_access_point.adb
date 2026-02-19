@@ -15,20 +15,16 @@ pragma Partition_Elaboration_Policy (Sequential);
 package body LibSAP.Synchronous_Provider_Service_Access_Point
   with
     Refined_State =>
-      (Transaction_Queue => Protected_Queue,
-       Queue_Memory      => STQ.Single_Instance)
+      (Transaction_Queue => (Protected_Queue, STQ.Transaction_Pool))
 is
 
    type Holder_Data is limited record
-      Queue               : STQ.Valid_Queue_Type;
-      Has_Free_Slot       : Boolean := False;
+      Queue               : STQ.Transaction_Queue_Type;
       Has_Pending_Request : Boolean := False;
    end record;
 
    function Is_Valid (HD : Holder_Data) return Boolean
-   is ((if HD.Has_Free_Slot then STQ.Can_Allocate_Request (HD.Queue))
-       and then
-         (if HD.Has_Pending_Request then STQ.Has_Pending_Request (HD.Queue)));
+   is (if HD.Has_Pending_Request then STQ.Has_Pending_Request (HD.Queue));
 
    subtype Valid_Holder_Data is Holder_Data
    with Predicate => Is_Valid (Valid_Holder_Data);
@@ -36,22 +32,6 @@ is
    protected Protected_Queue
      with Priority => Priority
    is
-
-      procedure Claim_Memory;
-
-      entry Allocate_Request (Handle : in out STQ.Request_Handle)
-      with
-        Pre  => STQ.Is_Null (Handle),
-        Post => not STQ.Is_Null (Handle) and not STQ.Request_Ready (Handle);
-
-      procedure Abort_Request (Handle : in out STQ.Request_Handle)
-      with Pre => not STQ.Is_Null (Handle), Post => STQ.Is_Null (Handle);
-
-      procedure Try_Allocate_Request (Handle : in out STQ.Request_Handle)
-      with
-        Pre  => STQ.Is_Null (Handle),
-        Post =>
-          (if not STQ.Is_Null (Handle) then not STQ.Request_Ready (Handle));
 
       procedure Send_Request
         (Handle  : in out STQ.Request_Handle;
@@ -69,30 +49,6 @@ is
       entry Get_Next_Request (Handle : in out STQ.Service_Handle)
       with Pre => STQ.Is_Null (Handle), Post => not STQ.Is_Null (Handle);
 
-      procedure Request_Completed (Handle : in out STQ.Service_Handle)
-      with
-        Pre  =>
-          not STQ.Is_Null (Handle) and then not STQ.Requires_Confirm (Handle),
-        Post => STQ.Is_Null (Handle);
-
-      procedure Send_Confirm (Handle : in out STQ.Service_Handle)
-      with
-        Pre  =>
-          not STQ.Is_Null (Handle)
-          and then STQ.Requires_Confirm (Handle)
-          and then STQ.Has_Valid_Confirm (Handle),
-        Post => STQ.Is_Null (Handle);
-
-      procedure Try_Get_Confirm
-        (Handle  : in out STQ.Confirm_Handle;
-         Promise : in out STQ.Confirm_Promise)
-      with
-        Pre  => STQ.Is_Null (Handle) and then not STQ.Is_Null (Promise),
-        Post => STQ.Is_Null (Handle) = not STQ.Is_Null (Promise);
-
-      procedure Release (Handle : in out STQ.Confirm_Handle)
-      with Pre => not STQ.Is_Null (Handle), Post => STQ.Is_Null (Handle);
-
    private
 
       Data : Valid_Holder_Data := (others => <>);
@@ -104,95 +60,6 @@ is
    ---------------------
 
    protected body Protected_Queue is
-
-      ----------------
-      -- Claim_Memory --
-      ----------------
-
-      procedure Claim_Memory is
-      begin
-         if STQ.Is_Empty (Data.Queue) then
-            STQ.Claim_Single_Instance (Data.Queue);
-
-            Data.Has_Free_Slot := STQ.Can_Allocate_Request (Data.Queue);
-            Data.Has_Pending_Request := STQ.Has_Pending_Request (Data.Queue);
-         end if;
-      end Claim_Memory;
-
-      ----------------------
-      -- Allocate_Request --
-      ----------------------
-
-      entry Allocate_Request (Handle : in out STQ.Request_Handle)
-        when Data.Has_Free_Slot
-      is
-
-         --  Operate on type Holder_Data instead of Valid_Holder_Data to
-         --  allow the type predicate to be (temporarily) violated.
-
-         procedure Wrapper (HD : in out Holder_Data)
-         with
-           Inline,
-           Pre  =>
-             Is_Valid (HD)
-             and then STQ.Is_Null (Handle)
-             and then HD.Has_Free_Slot,
-           Post =>
-             Is_Valid (HD)
-             and then not STQ.Is_Null (Handle)
-             and then not STQ.Request_Ready (Handle);
-
-         procedure Wrapper (HD : in out Holder_Data) is
-         begin
-            STQ.Try_Allocate_Request (HD.Queue, Handle);
-
-            HD.Has_Free_Slot := STQ.Can_Allocate_Request (HD.Queue);
-         end Wrapper;
-
-      begin
-         Wrapper (Data);
-      end Allocate_Request;
-
-      -------------------
-      -- Abort_Request --
-      -------------------
-
-      procedure Abort_Request (Handle : in out STQ.Request_Handle) is
-      begin
-         STQ.Abort_Request (Data.Queue, Handle);
-
-         Data.Has_Free_Slot := True;
-      end Abort_Request;
-
-      --------------------------
-      -- Try_Allocate_Request --
-      --------------------------
-
-      procedure Try_Allocate_Request (Handle : in out STQ.Request_Handle) is
-
-         --  Operate on type Holder_Data instead of Valid_Holder_Data to
-         --  allow the type predicate to be (temporarily) violated.
-
-         procedure Wrapper (HD : in out Holder_Data)
-         with
-           Inline,
-           Pre  => Is_Valid (HD) and then STQ.Is_Null (Handle),
-           Post =>
-             Is_Valid (HD)
-             and then
-               (if not STQ.Is_Null (Handle)
-                then not STQ.Request_Ready (Handle));
-
-         procedure Wrapper (HD : in out Holder_Data) is
-         begin
-            STQ.Try_Allocate_Request (HD.Queue, Handle);
-
-            HD.Has_Free_Slot := STQ.Can_Allocate_Request (HD.Queue);
-         end Wrapper;
-
-      begin
-         Wrapper (Data);
-      end Try_Allocate_Request;
 
       ------------------
       -- Send_Request --
@@ -237,48 +104,6 @@ is
       begin
          Wrapper (Data);
       end Get_Next_Request;
-
-      -----------------------
-      -- Request_Completed --
-      -----------------------
-
-      procedure Request_Completed (Handle : in out STQ.Service_Handle) is
-      begin
-         STQ.Request_Completed (Data.Queue, Handle);
-
-         Data.Has_Free_Slot := True;
-      end Request_Completed;
-
-      ------------------
-      -- Send_Confirm --
-      ------------------
-
-      procedure Send_Confirm (Handle : in out STQ.Service_Handle) is
-      begin
-         STQ.Send_Confirm (Data.Queue, Handle);
-      end Send_Confirm;
-
-      ---------------------
-      -- Try_Get_Confirm --
-      ---------------------
-
-      procedure Try_Get_Confirm
-        (Handle  : in out STQ.Confirm_Handle;
-         Promise : in out STQ.Confirm_Promise) is
-      begin
-         STQ.Try_Get_Confirm (Data.Queue, Handle, Promise);
-      end Try_Get_Confirm;
-
-      -------------
-      -- Release --
-      -------------
-
-      procedure Release (Handle : in out STQ.Confirm_Handle) is
-      begin
-         STQ.Release (Data.Queue, Handle);
-
-         Data.Has_Free_Slot := True;
-      end Release;
 
    end Protected_Queue;
 
@@ -355,22 +180,13 @@ is
       STQ.Move (Target => Target.Handle, Source => Source.Handle);
    end Move;
 
-   ----------------------
-   -- Allocate_Request --
-   ----------------------
-
-   procedure Allocate_Request (Handle : in out Request_Handle) is
-   begin
-      Protected_Queue.Allocate_Request (Handle.Handle);
-   end Allocate_Request;
-
    -------------------
    -- Abort_Request --
    -------------------
 
    procedure Abort_Request (Handle : in out Request_Handle) is
    begin
-      Protected_Queue.Abort_Request (Handle.Handle);
+      STQ.Abort_Request (Handle.Handle);
    end Abort_Request;
 
    --------------------------
@@ -379,7 +195,7 @@ is
 
    procedure Try_Allocate_Request (Handle : in out Request_Handle) is
    begin
-      Protected_Queue.Try_Allocate_Request (Handle.Handle);
+      STQ.Try_Allocate_Request (Handle.Handle);
    end Try_Allocate_Request;
 
    -------------------
@@ -483,7 +299,7 @@ is
 
    procedure Request_Completed (Handle : in out Service_Handle) is
    begin
-      Protected_Queue.Request_Completed (Handle.Handle);
+      STQ.Request_Completed (Handle.Handle);
    end Request_Completed;
 
    ------------------
@@ -492,7 +308,7 @@ is
 
    procedure Send_Confirm (Handle : in out Service_Handle) is
    begin
-      Protected_Queue.Send_Confirm (Handle.Handle);
+      STQ.Send_Confirm (Handle.Handle);
    end Send_Confirm;
 
    ---------------------
@@ -539,7 +355,7 @@ is
 
    procedure Release (Handle : in out Confirm_Handle) is
    begin
-      Protected_Queue.Release (Handle.Handle);
+      STQ.Release (Handle.Handle);
    end Release;
 
    -----------------
@@ -560,9 +376,7 @@ is
    procedure Try_Get_Confirm
      (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise) is
    begin
-      Protected_Queue.Try_Get_Confirm (Handle.Handle, Promise.Handle);
+      STQ.Try_Get_Confirm (Handle.Handle, Promise.Handle);
    end Try_Get_Confirm;
 
-begin
-   Protected_Queue.Claim_Memory;
 end LibSAP.Synchronous_Provider_Service_Access_Point;

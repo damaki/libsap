@@ -130,12 +130,15 @@ In particular, the SPARK proofs ensure that:
 
 ## Limitations
 
+
+### Liveliness
 While LibSAP is able to enforce correct API usage, it cannot guarantee
 liveliness. That is, it cannot guarantee that a Service Provider task will
 actually read and respond to requests. It is the user's responsibility to
 ensure that their tasks respond to requests within the appropriate deadlines
 for their system.
 
+### Tasking Restrictions
 LibSAP is written in SPARK and is therefore subject to the Jorvik tasking
 profile and the sequential partition elaboration policy. These are set with
 the following partition-wide pragmas:
@@ -145,7 +148,19 @@ pragma Profile (Jorvik);
 pragma Partition_Elaboration_Policy (Sequential);
 ```
 
+### Ownership Semantics on Primitives
 Service Primitives transferred using LibSAP cannot have ownership semantics.
+
+### Non-blocking API
+Most of LibSAP's API calls are non-blocking, so LibSAP does not provide a way
+for tasks to block (wait) for certain things to happen. In particular:
+ * request allocation is non-blocking; and
+ * getting a confirmation/response is non-blocking.
+
+You can, however, build your own mechanisms (e.g., using protected objects) on
+top of LibSAP to allow your tasks to wait for certain events to happen. The way
+to do this depends on your tasks' behaviour and interactions, but the examples
+show some ways that this can be done.
 
 ## API Concepts
 
@@ -334,7 +349,7 @@ Now we have everything we need to create a SAP:
 ### Sending a Request (Service User)
 
 Sending a request consists of three steps:
-1. Call `Allocate_Request` to allocate a new Request Handle.
+1. Call `Try_Allocate_Request` to allocate a new Request Handle.
 2. Call `Build_Request` to store the request via the handle.
 3. Call `Send_Request` to queue the request in the SAP.
 
@@ -347,7 +362,7 @@ sequenceDiagram
     participant User@{ "type": "control" }
     participant SAP as SAP
 
-    User->>+SAP: Allocate_Request(Handle)
+    User->>+SAP: Try_Allocate_Request(Handle)
     create participant RH as Request_Handle
     SAP->>RH: create
     SAP-->>-User:
@@ -376,13 +391,18 @@ procedure Send_Request_To_SAP is
    Cfm_Promise : SAP.Confirm_Promise;
 
 begin
-   SAP.Allocate_Request (Req_Handle);
-   Build_Request (Req_Handle);
-   SAP.Send_Request (Req_Handle, Cfm_Promise);
+   SAP.Try_Allocate_Request (Req_Handle);
 
-   --  ECHO.req requires a response, so the SAP gives a valid Cfm_Handle
+   if not SAP.Is_Null (Req_Handle) then
+      Build_Request (Req_Handle);
+      SAP.Send_Request (Req_Handle, Cfm_Promise);
 
-   pragma Assert (not SAP.Is_Null (Cfm_Promise));
+   else
+      --  Failed to allocate a request. This happens when the SAP has no free
+      --  resources to start a new transaction.
+
+      Handle_Allocation_Failure;
+   end if;
 
    --  This snippet omits the code to read the confirmation, so GNATprove
    --  would emit a warning that a resource leak occurs at the end of this

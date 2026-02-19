@@ -51,11 +51,13 @@ is
       Cfm_Promise : SAP.Confirm_Promise;
 
    begin
-      SAP.Allocate_Request (Handle);
+      loop
+         SAP.Try_Allocate_Request (Handle);
+         exit when not SAP.Is_Null (Handle);
+      end loop;
+
       Build_Request (Handle);
       SAP.Send_Request (Handle, Cfm_Promise);
-
-      pragma Assert (SAP.Is_Null (Cfm_Promise));
 
       pragma Unreferenced (Handle);
    end Log_Message;

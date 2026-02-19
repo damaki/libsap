@@ -24,7 +24,7 @@ generic
 
 package LibSAP.Light_Provider_Service_Access_Point with
     Elaborate_Body,
-    Abstract_State => (Transaction_Queue, Queue_Memory)
+    Abstract_State => (Transaction_Queue, (Transaction_Pool with Synchronous))
 is
 
    type Transaction_ID is new Positive range 1 .. Queue_Capacity;
@@ -281,7 +281,7 @@ is
    procedure Try_Allocate_Request (Handle : in out Request_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    => Is_Null (Handle),
      Post   => (if not Is_Null (Handle) then not Request_Ready (Handle));
    --  Try to allocate a new request object.
@@ -308,7 +308,7 @@ is
    procedure Abort_Request (Handle : in out Request_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    => not Is_Null (Handle),
      Post   => Is_Null (Handle);
    --  Abort a request.
@@ -320,7 +320,7 @@ is
      (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    => Is_Null (Handle) and then not Is_Null (Promise),
      Post   => Is_Null (Handle) = not Is_Null (Promise);
    --  Try to get the pending confirm primitive from a Promise.
@@ -333,7 +333,7 @@ is
    procedure Release (Handle : in out Confirm_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    => not Is_Null (Handle),
      Post   => Is_Null (Handle);
    --  Release a confirm handle.
@@ -365,7 +365,7 @@ is
 
    procedure Request_Completed (Handle : in out Service_Handle)
    with
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    => not Is_Null (Handle) and then not Requires_Confirm (Handle),
      Post   => Is_Null (Handle);
    --  Release a service handle.
@@ -376,7 +376,7 @@ is
 
    procedure Send_Confirm (Handle : in out Service_Handle)
    with
-     Global => (In_Out => Transaction_Queue),
+     Global => (In_Out => Transaction_Pool),
      Pre    =>
        not Is_Null (Handle)
        and then Requires_Confirm (Handle)
@@ -430,7 +430,7 @@ private
         Queue_Capacity   => Queue_Capacity,
         Requires_Confirm => Requires_Confirm,
         Valid_Confirm    => Valid_Confirm);
-   pragma Part_Of (Queue_Memory);
+   pragma Part_Of (Transaction_Pool);
 
    type Request_Handle is limited record
       Handle : STQ.Request_Handle;

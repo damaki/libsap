@@ -4,8 +4,13 @@
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
+with LibSAP.Pointer_Holders;
+
 package body LibSAP.Singleton_Transaction_Queues
-  with Refined_State => (Single_Instance => Memory_Holder)
+  with
+    Refined_State =>
+      (Transaction_Pool =>
+         (Free_Pool.Pointer_Pool, Pending_Confirms_Pool.Pointer_Pool))
 is
 
    type Confirm_Promise_Token (TID : Transaction_ID) is null record;
@@ -28,153 +33,79 @@ is
    end record
    with Predicate => (if Cfm_Token /= null then Cfm_Token.all.TID = TID);
 
-   type Memory_Holder_Type is record
-      Slots : Transaction_Data_Access_Array;
-   end record
+   type Allocatable_Transaction_Data_Access is access Transaction_Data;
+
+   ---------------
+   -- Free Pool --
+   ---------------
+
+   subtype Free_Transaction_Data_Access is Transaction_Data_Access
    with
      Predicate =>
-       (for all I in Transaction_ID =>
-          (if Slots (I) /= null
-           then
-             Slots (I).all.TID = I
-             and then Slots (I).all.State = Free
-             and then Slots (I).all.Cfm_Token /= null));
+       (if Free_Transaction_Data_Access /= null
+        then
+          Free_Transaction_Data_Access.all.State = Free
+          and then Free_Transaction_Data_Access.all.Cfm_Token /= null);
 
-   Memory_Holder : Memory_Holder_Type := (Slots => [others => null]);
+   package Free_Pool is new
+     LibSAP.Pointer_Holders
+       (Element_ID     => Transaction_ID,
+        Element_Type   => Transaction_Data,
+        Element_Access => Free_Transaction_Data_Access);
 
-   procedure Allocate_Memory
+   ---------------------------
+   -- Pending Confirms Pool --
+   ---------------------------
+
+   subtype Confirm_Pending_Transaction_Data_Access is Transaction_Data_Access
    with
-     Global => (In_Out => Memory_Holder),
-     Pre    => (for all S of Memory_Holder.Slots => S = null),
-     Post   => (for all S of Memory_Holder.Slots => S /= null);
+     Predicate =>
+       (if Confirm_Pending_Transaction_Data_Access /= null
+        then
+          Confirm_Pending_Transaction_Data_Access.all.State = Confirm_Pending
+          and then Confirm_Pending_Transaction_Data_Access.all.Cfm_Token = null
+          and then
+            Requires_Confirm
+              (Confirm_Pending_Transaction_Data_Access.all.Request)
+          and then
+            Valid_Confirm
+              (Confirm_Pending_Transaction_Data_Access.all.Request,
+               Confirm_Pending_Transaction_Data_Access.all.Confirm));
 
-   procedure Move (Target, Source : in out Transaction_Data_Access)
+   package Pending_Confirms_Pool is new
+     LibSAP.Pointer_Holders
+       (Element_ID     => Transaction_ID,
+        Element_Type   => Transaction_Data,
+        Element_Access => Confirm_Pending_Transaction_Data_Access);
+
+   procedure Fill_Free_Pool
+   with Global => (In_Out => Free_Pool.Pointer_Pool);
+   --  Allocates Transaction_Data objects (one per TID) and stores them
+   --  in the Free_Pool.
+   --
+   --  This must be called once only, during elaboration.
+
+   procedure Store_In_Free_Pool (Ptr : in out Free_Transaction_Data_Access)
    with
-     Inline,
-     Global         => null,
-     Pre            => Target = null and then Source /= null,
-     Post           =>
-       Target.all.TID = Source.all.TID'Old
-       and Target.all.State = Source.all.State'Old
-       and
-         (Requires_Confirm (Target.all.Request)
-          = Requires_Confirm (Source.all.Request)'Old)
-       and
-         (Valid_Confirm (Target.all.Request, Target.all.Confirm)
-          = Valid_Confirm (Source.all.Request, Source.all.Confirm)'Old)
-       and Source = null
-       and Target /= null,
-     Contract_Cases =>
-       (Source.all.Cfm_Token = null  => Target.all.Cfm_Token = null,
-        Source.all.Cfm_Token /= null => Target.all.Cfm_Token /= null);
+     Global => (In_Out => Free_Pool.Pointer_Pool),
+     Pre    => Ptr /= null,
+     Post   => Ptr = null;
 
-   procedure Move (Target, Source : in out Confirm_Promise_Token_Access)
+   procedure Store_In_Pending_Confirms_Pool
+     (Ptr : in out Confirm_Pending_Transaction_Data_Access)
    with
-     Inline,
-     Global => null,
-     Pre    => Target = null and then Source /= null,
-     Post   =>
-       Target /= null
-       and Source = null
-       and Target.all.TID = Source.all.TID'Old;
+     Global => (In_Out => Pending_Confirms_Pool.Pointer_Pool),
+     Pre    => Ptr /= null,
+     Post   => Ptr = null;
 
-   procedure Check_Slot_Is_Empty
-     (Queue : Valid_Queue_Type; Handle : Transaction_Handle)
-   with
-     Global => null,
-     Pre    => Handle.TD /= null,
-     Post   => Queue.Slots (Handle.TD.all.TID) = null;
+   -------------------------------
+   -- Pending_Request_Predicate --
+   -------------------------------
 
-   ------------------------
-   -- Property Functions --
-   ------------------------
-
-   subtype Valid_Queue_Slot_State is Slot_States
-   with
-     Static_Predicate =>
-       Valid_Queue_Slot_State in Free | Request_Pending | Confirm_Pending;
-   --  Set of states that a transaction can be in while it is held in the
-   --  transaction queue. The transaction can only be in other states while
-   --  it is held by a handle.
-
-   function P_Slot_Index_Matches_TID (Queue : Queue_Type) return Boolean
-   is (for all I in Queue.Slots'Range =>
-         (if Queue.Slots (I) /= null then Queue.Slots (I).all.TID = I))
-   with Ghost;
-   --  True when the TID of all transactions matches the index of the slot
-   --  they're stored in.
-
-   function P_Cfm_Token_Present (Queue : Queue_Type) return Boolean
-   is (for all S of Queue.Slots =>
-         (if S /= null
-          then
-            (if S.all.State = Request_Pending
-             then (S.all.Cfm_Token = null) = Requires_Confirm (S.all.Request)
-             elsif S.all.State = Confirm_Pending
-             then S.all.Cfm_Token = null
-             elsif S.all.State = Free
-             then S.all.Cfm_Token /= null)))
-   with Ghost;
-   --  Cfm_Token is not held by a transaction only when:
-   --    * the transaction is in the Cfm_Pending state; or
-   --    * the transaction is in the Request_Pending state and the request
-   --      requires a confirmation.
-
-   function P_Has_Free_Slot_Valid (Queue : Queue_Type) return Boolean
-   is (if Queue.Has_Free_Slot
-       then
-         (for some S of Queue.Slots => S /= null and then S.all.State = Free))
-   with Ghost;
-   --  If Has_Free_Slot is true, then there is at least one slot that is in the
-   --  Free state.
-
-   function P_Has_Pending_Request_Valid (Queue : Queue_Type) return Boolean
-   is (Queue.Has_Pending_Request
-       = (for some S of Queue.Slots =>
-            S /= null and then S.all.State = Request_Pending)
-
-       and then
-         Queue.Has_Pending_Request
-         = not LibSAP.Unique_Integer_Queues.Is_Empty (Queue.Pending_Queue))
-   with Ghost;
-
-   function P_Confirm_Pending_Valid (Queue : Queue_Type) return Boolean
-   is (for all S of Queue.Slots =>
-         (if S /= null and then S.all.State = Confirm_Pending
-          then
-            Requires_Confirm (S.all.Request)
-            and then Valid_Confirm (S.all.Request, S.all.Confirm)))
-   with Ghost;
-   --  Slots in the Confirm_Pending state have a valid confirm object
-
-   function P_Pending_Requests_In_Queue (Queue : Queue_Type) return Boolean
-   is (for all I in Transaction_ID =>
-         LibSAP.Unique_Integer_Queues.Contains (Queue.Pending_Queue, I)
-         = (Queue.Slots (I) /= null
-            and then Queue.Slots (I).all.State = Request_Pending))
-   with Ghost;
-
-   --------------
-   -- Is_Valid --
-   --------------
-
-   function Is_Valid (Queue : Queue_Type) return Boolean
-   is ((for all S of Queue.Slots =>
-          (if S /= null then S.all.State in Valid_Queue_Slot_State))
-
-       and then P_Slot_Index_Matches_TID (Queue)
-       and then P_Cfm_Token_Present (Queue)
-       and then P_Has_Free_Slot_Valid (Queue)
-       and then P_Has_Pending_Request_Valid (Queue)
-       and then P_Confirm_Pending_Valid (Queue)
-       and then P_Pending_Requests_In_Queue (Queue));
-
-   --------------
-   -- Is_Empty --
-   --------------
-
-   function Is_Empty (Queue : Queue_Type) return Boolean
-   is (for all S of Queue.Slots => S = null);
+   function Pending_Request_Predicate
+     (TD : not null Transaction_Data_Access) return Boolean
+   is (TD.all.State = Request_Pending
+       and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request));
 
    ------------------------------
    -- Request_Handle_Predicate --
@@ -212,19 +143,12 @@ is
        and then Requires_Confirm (TD.all.Request)
        and then Valid_Confirm (TD.all.Request, TD.all.Confirm));
 
-   --------------------------
-   -- Can_Allocate_Request --
-   --------------------------
-
-   function Can_Allocate_Request (Queue : Queue_Type) return Boolean
-   is (Queue.Has_Free_Slot);
-
    -------------------------
    -- Has_Pending_Request --
    -------------------------
 
-   function Has_Pending_Request (Queue : Queue_Type) return Boolean
-   is (Queue.Has_Pending_Request);
+   function Has_Pending_Request (Queue : Transaction_Queue_Type) return Boolean
+   is (Transaction_Data_Access_Queues.Length (Queue.Pending_Queue) > 0);
 
    -------------
    -- Get_TID --
@@ -409,84 +333,6 @@ is
       Source.TD := null;
    end Move;
 
-   procedure Move (Target, Source : in out Transaction_Data_Access) is
-   begin
-      Target := Source;
-      Source := null;
-   end Move;
-
-   procedure Move (Target, Source : in out Confirm_Promise_Token_Access) is
-   begin
-      Target := Source;
-      Source := null;
-   end Move;
-
-   -------------------------
-   -- Check_Slot_Is_Empty --
-   -------------------------
-
-   procedure Check_Slot_Is_Empty
-     (Queue : Valid_Queue_Type; Handle : Transaction_Handle) is
-   begin
-      --  Rationale for pragma Assume:
-      --
-      --  If Handle contains a non-null pointer, then it is guaranteed that
-      --  the corresponding slot in Queue is null.
-      --
-      --  This is guaranteed because:
-      --   1. there is always exactly one Transaction_Data instance for each
-      --      transaction ID (TID), so two Transaction_Data objects cannot
-      --      share the same TID.
-      --   2. each slot in Queue can only hold a pointer to a Transaction_Data
-      --      object that has the TID matching the array index, so slots can
-      --      only ever hold a pointer to one Transaction_Data instance.
-      --   3. SPARK's ownership rules guarantee that only one mutable pointer
-      --      can point to (i.e. "own") an object at a time.
-      --
-      --  Therefore, if a Transaction_Data object is owned by a Handle, then
-      --  it cannot also be owned by the Queue slot for that TID (doing so
-      --  would violate SPARK's ownership rules), and so it must be null.
-      --
-      --  Further rationale:
-      --
-      --  (1) is guaranteed because the allocation of Transaction_Data objects
-      --  is completely controlled by this package body, and this package body
-      --  only ever allocates Transaction_Data objects (one object per TID)
-      --  *once* during elaboration via the call to Allocate_Memory. Pointers
-      --  to these allocated objects are initially held in Memory_Holder, and
-      --  users of this package may *move* the allocated objects to their
-      --  own Queue_Type instances (by calling Claim_Single_Instance), but they
-      --  cannot allocate more Transaction_Data objects.
-      --
-      --  Users cannot allocate more Transaction_Data objects because:
-      --   a. The Transaction_Data type is incomplete in the package spec,
-      --      so no other unit can allocate or deallocate objects of that type
-      --      (only this package body has full visibility of Transaction_Data).
-      --   b. The only subprogram in this package that allocates
-      --      Transaction_Data objects is Allocate_Memory, and it is private
-      --      to this package body and so is not visible to other units.
-      --
-      --  (2) is guaranteed by the Is_Valid predicate for Queue_Type.
-      --
-      --  (3) is verified by GNATprove.
-      --
-      --  Note that we also assume that other units outside this package do not
-      --  intentionally violate the SPARK's rules and checks, which could
-      --  violate this assumption. To detect such cases we do a defensive check
-      --  at run-time.
-
-      pragma Assert (Handle.TD /= null);
-      pragma Assert (Is_Valid (Queue));
-
-      pragma Assume (Queue.Slots (Handle.TD.all.TID) = null);
-
-      --  Defensive check for the above assumption
-
-      if Queue.Slots (Handle.TD.all.TID) /= null then
-         raise Program_Error;
-      end if;
-   end Check_Slot_Is_Empty;
-
    -------------------
    -- Build_Confirm --
    -------------------
@@ -505,65 +351,42 @@ is
    -- Try_Allocate_Request --
    --------------------------
 
-   procedure Try_Allocate_Request
-     (Queue : in out Queue_Type; Handle : in out Request_Handle)
-   is
-      Free_TID : Transaction_ID
-      with Relaxed_Initialization;
+   procedure Try_Allocate_Request (Handle : in out Request_Handle) is
    begin
-      if Queue.Has_Free_Slot then
+      for I in Transaction_ID loop
+         declare
+            Free_Ptr : Free_Transaction_Data_Access;
+            Temp     : Transaction_Data_Access;
+         begin
+            Free_Pool.Retrieve (I, Free_Ptr);
 
-         --  Find a free slot
-
-         for I in Queue.Slots'Range loop
-            pragma
-              Loop_Invariant
-                (for all J in Queue.Slots'Range =>
-                   (if J < I
-                    then
-                      Queue.Slots (J) = null
-                      or else Queue.Slots (J).all.State /= Free));
-
-            if Queue.Slots (I) /= null
-              and then Queue.Slots (I).all.State = Free
-            then
-               Free_TID := I;
+            if Free_Ptr /= null then
+               Temp := Transaction_Data_Access (Free_Ptr);
+               Temp.all.State := Request_Allocated;
+               Handle.TD := Temp;
                exit;
             end if;
-         end loop;
-
-         --  Update Has_Free_Slot
-
-         Queue.Has_Free_Slot :=
-           (for some I in Queue.Slots'Range =>
-              (I /= Free_TID
-               and then Queue.Slots (I) /= null
-               and then Queue.Slots (I).all.State = Free));
-
-         --  Move the transition data to the handle
-
-         Queue.Slots (Free_TID).all.State := Request_Allocated;
-
-         Move (Target => Handle.TD, Source => Queue.Slots (Free_TID));
-      end if;
+         end;
+      end loop;
    end Try_Allocate_Request;
 
    -------------------
    -- Abort_Request --
    -------------------
 
-   procedure Abort_Request
-     (Queue : in out Queue_Type; Handle : in out Request_Handle)
-   is
-      TID : constant Transaction_ID := Handle.TD.all.TID;
+   procedure Abort_Request (Handle : in out Request_Handle) is
+      Temp     : Transaction_Data_Access;
+      Free_Ptr : Free_Transaction_Data_Access;
    begin
-      Check_Slot_Is_Empty (Queue, Transaction_Handle (Handle));
-
-      Queue.Slots (TID) := Handle.TD;
+      Temp := Handle.TD;
       Handle.TD := null;
 
-      Queue.Slots (TID).State := Free;
-      Queue.Has_Free_Slot := True;
+      Temp.all.State := Free;
+      Free_Ptr := Free_Transaction_Data_Access (Temp);
+
+      Store_In_Free_Pool (Free_Ptr);
+
+      pragma Unreferenced (Free_Ptr);
    end Abort_Request;
 
    ------------------
@@ -571,18 +394,15 @@ is
    ------------------
 
    procedure Send_Request
-     (Queue   : in out Queue_Type;
+     (Queue   : in out Transaction_Queue_Type;
       Handle  : in out Request_Handle;
       Promise : in out Confirm_Promise)
    is
-      TID  : constant Transaction_ID := Handle.TD.all.TID;
+      package TDAQ renames Transaction_Data_Access_Queues;
+
       Temp : Transaction_Data_Access;
 
    begin
-      Check_Slot_Is_Empty (Queue, Transaction_Handle (Handle));
-
-      pragma Assert (Handle.TD.all.State = Request_Written);
-
       Temp := Handle.TD;
       Handle.TD := null;
 
@@ -593,12 +413,26 @@ is
          Temp.all.Cfm_Token := null;
       end if;
 
-      pragma Assert (Temp.all.TID = TID);
+      --  Rationale for pragma Assume:
+      --
+      --  If we have a pointer to a Transaction_Data (currently held in Temp at
+      --  this point), then the Pending_Queue cannot be full. This is because
+      --  there are only ever Queue_Capacity Transaction_Data objects in
+      --  existence at a time (they are allocated one time, during the
+      --  elaboration of this package), and SPARK's ownership rules ensure that
+      --  a pointer to each object can exist in one place at a time. So if we
+      --  have a valid pointer in Temp, then there must be at least one free
+      --  space in Pending_Queue.
 
-      Queue.Slots (TID) := Temp;
+      pragma Assume (TDAQ.Length (Queue.Pending_Queue) < Queue_Capacity);
 
-      Queue.Has_Pending_Request := True;
-      LibSAP.Unique_Integer_Queues.Append (Queue.Pending_Queue, TID);
+      --  Defensive check for the above assumption.
+
+      if TDAQ.Length (Queue.Pending_Queue) = Queue_Capacity then
+         raise Program_Error;
+      end if;
+
+      TDAQ.Append (Queue.Pending_Queue, Temp);
    end Send_Request;
 
    --------------------------
@@ -606,18 +440,22 @@ is
    --------------------------
 
    procedure Try_Get_Next_Request
-     (Queue : in out Queue_Type; Handle : in out Service_Handle)
+     (Queue : in out Transaction_Queue_Type; Handle : in out Service_Handle)
    is
-      TID : Transaction_ID;
+      package TDAQ renames Transaction_Data_Access_Queues;
+
+      Pending_Ptr : Pending_Request_Transaction_Data_Access;
+      Temp        : Transaction_Data_Access;
+
    begin
-      if Queue.Has_Pending_Request then
-         LibSAP.Unique_Integer_Queues.Pop_Front (Queue.Pending_Queue, TID);
+      if TDAQ.Length (Queue.Pending_Queue) > 0 then
+         Transaction_Data_Access_Queues.Pop_Front
+           (Queue.Pending_Queue, Pending_Ptr);
 
-         Queue.Has_Pending_Request :=
-           not LibSAP.Unique_Integer_Queues.Is_Empty (Queue.Pending_Queue);
+         Temp := Transaction_Data_Access (Pending_Ptr);
 
-         Queue.Slots (TID).all.State := Request_Read;
-         Move (Target => Handle.TD, Source => Queue.Slots (TID));
+         Temp.all.State := Request_Read;
+         Handle.TD := Temp;
       end if;
    end Try_Get_Next_Request;
 
@@ -625,66 +463,62 @@ is
    -- Send_Confirm --
    ------------------
 
-   procedure Send_Confirm
-     (Queue : in out Queue_Type; Handle : in out Service_Handle)
-   is
-      TID : constant Transaction_ID := Handle.TD.all.TID;
+   procedure Send_Confirm (Handle : in out Service_Handle) is
+      Temp        : Transaction_Data_Access;
+      Pending_Ptr : Confirm_Pending_Transaction_Data_Access;
    begin
-      Check_Slot_Is_Empty (Queue, Transaction_Handle (Handle));
-
-      Queue.Slots (TID) := Handle.TD;
+      Temp := Handle.TD;
       Handle.TD := null;
 
-      Queue.Slots (TID).all.State := Confirm_Pending;
+      Temp.all.State := Confirm_Pending;
+      Pending_Ptr := Confirm_Pending_Transaction_Data_Access (Temp);
+
+      Store_In_Pending_Confirms_Pool (Pending_Ptr);
+
+      pragma Unreferenced (Pending_Ptr);
    end Send_Confirm;
 
    -----------------------
    -- Request_Completed --
    -----------------------
 
-   procedure Request_Completed
-     (Queue : in out Queue_Type; Handle : in out Service_Handle)
-   is
-      TID : constant Transaction_ID := Handle.TD.all.TID;
+   procedure Request_Completed (Handle : in out Service_Handle) is
+      Temp     : Transaction_Data_Access;
+      Free_Ptr : Free_Transaction_Data_Access;
    begin
-      Check_Slot_Is_Empty (Queue, Transaction_Handle (Handle));
-
-      Queue.Slots (TID) := Handle.TD;
+      Temp := Handle.TD;
       Handle.TD := null;
 
-      Queue.Slots (TID).all.State := Free;
-      Queue.Has_Free_Slot := True;
+      Temp.all.State := Free;
+      Free_Ptr := Free_Transaction_Data_Access (Temp);
+
+      Store_In_Free_Pool (Free_Ptr);
+
+      pragma Unreferenced (Free_Ptr);
    end Request_Completed;
-
-   -------------------------
-   -- Has_Pending_Confirm --
-   -------------------------
-
-   function Has_Pending_Confirm
-     (Queue : Queue_Type; Promise : Confirm_Promise) return Boolean
-   is (Queue.Slots (Promise.Token.all.TID) /= null
-       and then
-         Queue.Slots (Promise.Token.all.TID).all.State = Confirm_Pending);
 
    ---------------------
    -- Try_Get_Confirm --
    ---------------------
 
    procedure Try_Get_Confirm
-     (Queue   : in out Queue_Type;
-      Handle  : in out Confirm_Handle;
-      Promise : in out Confirm_Promise)
+     (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise)
    is
       TID : constant Transaction_ID := Promise.Token.all.TID;
+
+      Pending_Ptr : Confirm_Pending_Transaction_Data_Access;
+      Temp        : Transaction_Data_Access;
    begin
-      if Has_Pending_Confirm (Queue, Promise) then
-         Queue.Slots (TID).all.State := Confirm_Read;
+      Pending_Confirms_Pool.Retrieve (TID, Pending_Ptr);
 
-         Move
-           (Target => Queue.Slots (TID).all.Cfm_Token,
-            Source => Promise.Token);
+      if Pending_Ptr /= null then
+         Temp := Transaction_Data_Access (Pending_Ptr);
 
-         Move (Target => Handle.TD, Source => Queue.Slots (TID));
+         Temp.all.Cfm_Token := Promise.Token;
+         Promise.Token := null;
+
+         Temp.all.State := Confirm_Read;
+         Handle.TD := Temp;
       end if;
    end Try_Get_Confirm;
 
@@ -692,18 +526,19 @@ is
    -- Release --
    -------------
 
-   procedure Release
-     (Queue : in out Queue_Type; Handle : in out Confirm_Handle)
-   is
-      TID : constant Transaction_ID := Handle.TD.all.TID;
+   procedure Release (Handle : in out Confirm_Handle) is
+      Temp     : Transaction_Data_Access;
+      Free_Ptr : Free_Transaction_Data_Access;
    begin
-      Check_Slot_Is_Empty (Queue, Transaction_Handle (Handle));
-
-      Queue.Slots (TID) := Handle.TD;
+      Temp := Handle.TD;
       Handle.TD := null;
 
-      Queue.Slots (TID).all.State := Free;
-      Queue.Has_Free_Slot := True;
+      Temp.all.State := Free;
+      Free_Ptr := Free_Transaction_Data_Access (Temp);
+
+      Store_In_Free_Pool (Free_Ptr);
+
+      pragma Unreferenced (Free_Ptr);
    end Release;
 
    -----------------
@@ -720,70 +555,116 @@ is
       Req_Handle.TD := Temp;
    end New_Request;
 
-   ---------------------
-   -- Allocate_Memory --
-   ---------------------
+   ------------------------
+   -- Store_In_Free_Pool --
+   ------------------------
 
-   procedure Allocate_Memory is
+   procedure Store_In_Free_Pool (Ptr : in out Free_Transaction_Data_Access) is
+   begin
+      pragma Assert (Ptr /= null);
+
+      Free_Pool.Exchange (Ptr);
+
+      --  Rationale for pragma Assume:
+      --
+      --  There is only ever one instance of each Transaction_Data object
+      --  for each TID, and SPARK's ownership rules guarantee that a pointer to
+      --  each object can only ever be owned by one place at a time, either:
+      --   * in the free pool;
+      --   * in the confirm pending pool;
+      --   * in a pending request queue; or
+      --   * in a handle.
+      --
+      --  Therefore, if we had a pointer to a Transaction_Data object with a
+      --  specific TID on entry to this procedure, then the corresponding
+      --  slot for that TID in the free pool must have been null.
+      --
+      --  Note that the uniqueness of Transaction_Data objects (one per TID)
+      --  is guaranteed by:
+      --   * Transaction_Data objects cannot be allocated or created outside of
+      --     this package body since the Transaction_Data type in the spec is
+      --     incomplete, so the only place objects can be created is in this
+      --     package body.
+      --   * Transaction_Data objects are allocated once only in this package
+      --     body (during elaboration) and it allocates exactly one object per
+      --     TID.
+
+      pragma Assume (Ptr = null);
+
+      --  Defensive check for the above assumption
+
+      if Ptr /= null then
+         raise Program_Error;
+      end if;
+   end Store_In_Free_Pool;
+
+   ------------------------------------
+   -- Store_In_Pending_Confirms_Pool --
+   ------------------------------------
+
+   procedure Store_In_Pending_Confirms_Pool
+     (Ptr : in out Confirm_Pending_Transaction_Data_Access) is
+   begin
+      pragma Assert (Ptr /= null);
+
+      Pending_Confirms_Pool.Exchange (Ptr);
+
+      --  Rationale for pragma Assume is the same as the rationale
+      --  described in Store_In_Free_Pool.
+
+      pragma Assume (Ptr = null);
+
+      --  Defensive check for the above assumption
+
+      if Ptr /= null then
+         raise Program_Error;
+      end if;
+   end Store_In_Pending_Confirms_Pool;
+
+   --------------------
+   -- Fill_Free_Pool --
+   --------------------
+
+   procedure Fill_Free_Pool is
    begin
       for I in Transaction_ID loop
-         pragma
-           Loop_Invariant
-             (for all J in Transaction_ID =>
-                (if J < I
-                 then
-                   Memory_Holder.Slots (J) /= null
-                   and then Memory_Holder.Slots (J).all.State = Free
-                 else Memory_Holder.Slots (J) = null));
-
          declare
             Token : constant Confirm_Promise_Token_Access :=
               new Confirm_Promise_Token'(TID => I);
-         begin
-            Memory_Holder.Slots (I) :=
+
+            Obj : constant Allocatable_Transaction_Data_Access :=
               new Transaction_Data'
                 (TID       => I,
                  Request   => <>,
                  Confirm   => <>,
                  State     => Free,
                  Cfm_Token => Token);
+
+            Ptr : Free_Transaction_Data_Access :=
+              Free_Transaction_Data_Access (Obj);
+         begin
+            Free_Pool.Exchange (Ptr);
+
+            --  Rationale for pragma Assume:
+            --
+            --  The Free pool is initially all null, and it is not possible for
+            --  anything else to store a pointer in Free_Pool before this
+            --  package is elaborated, so Ptr must be null here.
+
+            pragma
+              Assume
+                (Ptr = null,
+                 "Slots in Free_Pool are initially null after elaboration");
+
+            --  Defensive check for the above assumption
+
+            if Ptr /= null then
+               raise Program_Error;
+            end if;
          end;
       end loop;
-   end Allocate_Memory;
-
-   ---------------------------
-   -- Claim_Single_Instance --
-   ---------------------------
-
-   procedure Claim_Single_Instance (Queue : in out Queue_Type) is
-   begin
-      Queue.Has_Free_Slot := False;
-      Queue.Has_Pending_Request := False;
-
-      for I in Transaction_ID loop
-         pragma Loop_Invariant (Is_Valid (Queue));
-         pragma Loop_Invariant (not Queue.Has_Pending_Request);
-
-         pragma
-           Loop_Invariant
-             (for all S of Queue.Slots =>
-                (if S /= null then S.all.State = Free));
-
-         pragma
-           Loop_Invariant
-             (for all J in Transaction_ID =>
-                (if J < I
-                 then Memory_Holder.Slots (J) = null
-                 else Queue.Slots (J) = null));
-
-         if Memory_Holder.Slots (I) /= null then
-            Queue.Has_Free_Slot := True;
-            Move
-              (Target => Queue.Slots (I), Source => Memory_Holder.Slots (I));
-         end if;
-      end loop;
-   end Claim_Single_Instance;
+   end Fill_Free_Pool;
 
 begin
-   Allocate_Memory;
+   Fill_Free_Pool;
 end LibSAP.Singleton_Transaction_Queues;

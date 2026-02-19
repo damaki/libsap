@@ -4,12 +4,13 @@
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
-package body Service_Users is
+package body Service_Users
+  with SPARK_Mode
+is
 
    task body Service_User is
       use all type Service_Provider.Request_Kind;
 
-      Req_Handle  : Service_Provider.SAP.Request_Handle;
       Cfm_Promise : Service_Provider.SAP.Confirm_Promise;
       Cfm_Handle  : Service_Provider.SAP.Confirm_Handle;
    begin
@@ -32,7 +33,7 @@ package body Service_Users is
       --  this example.
 
       declare
-         Value_To_Echo : constant Natural := Natural (SUID);
+         Value_To_Echo : constant Natural := 123;
 
          procedure Build_ECHO_Request
            (Request : out Service_Provider.Request_Type)
@@ -50,74 +51,82 @@ package body Service_Users is
            Service_Provider.SAP.Build_Request_With_Confirm
              (Build_ECHO_Request);
 
+         Handle : Service_Provider.SAP.Request_Handle;
+
       begin
-         Service_Provider.SAP.Allocate_Request (Req_Handle);
+         Service_Provider.SAP.Try_Allocate_Request (Handle);
 
-         Build_Request (Req_Handle);
+         if Service_Provider.SAP.Is_Null (Handle) then
+            Log_Service.Log_Message
+              ("[Service User" & SUID'Image & "] Failed to allocate request");
 
-         Service_Provider.Confirm_Barriers (SUID).Add_To_Filter
-           (Service_Provider.SAP.Get_TID (Req_Handle));
+         else
+            Build_Request (Handle);
 
-         Service_Provider.SAP.Send_Request (Req_Handle, Cfm_Promise);
+            --  Tell our Confirm_Barrier to listen for confirmations for this
+            --  transaction.
+
+            Service_Provider.Confirm_Barriers (SUID).Add_To_Filter
+              (Service_Provider.SAP.Get_TID (Handle));
+
+            Service_Provider.SAP.Send_Request (Handle, Cfm_Promise);
+         end if;
       end;
 
-      pragma Unreferenced (Req_Handle);
+      if not Service_Provider.SAP.Is_Null (Cfm_Promise) then
 
-      ----------------------------------------
-      --  Wait for a reply from the Service --
-      ----------------------------------------
+         ----------------------------------------
+         --  Wait for a reply from the Service --
+         ----------------------------------------
 
-      Service_Provider.Confirm_Barriers (SUID).Wait_For_Any_Confirm;
+         loop
+            pragma
+              Loop_Invariant (not Service_Provider.SAP.Is_Null (Cfm_Promise));
+            pragma Loop_Invariant (Service_Provider.SAP.Is_Null (Cfm_Handle));
 
-      loop
-         pragma Loop_Invariant (Service_Provider.SAP.Is_Null (Cfm_Handle));
+            Service_Provider.Confirm_Barriers (SUID).Wait_For_Any_Confirm;
+            Service_Provider.SAP.Try_Get_Confirm (Cfm_Handle, Cfm_Promise);
+
+            exit when not Service_Provider.SAP.Is_Null (Cfm_Handle);
+         end loop;
+
+         --------------------------
+         -- Process the ECHO.cfm --
+         --------------------------
+
+         --  LibSAP ensures that the Service sends the correct kind of confirm
+         --  based on the request (in this case, that ECHO.cfm is sent in
+         --  response to an ECHO.req), and this is proved in SPARK.
+         --
+         --  LibSAP also ensures that the request in the Confirm_Handle is the
+         --  same as the original request, but this is not currently provable
+         --  in SPARK so we use an assumption.
 
          pragma
-           Loop_Invariant (not Service_Provider.SAP.Is_Null (Cfm_Promise));
+           Assume
+             (Service_Provider.SAP.Request_Reference (Cfm_Handle).all.Kind
+              = ECHO_Req);
 
-         Service_Provider.SAP.Try_Get_Confirm (Cfm_Handle, Cfm_Promise);
+         declare
+            Confirm :
+              constant not null access constant
+                Service_Provider.Confirm_Type :=
+                Service_Provider.SAP.Confirm_Reference (Cfm_Handle);
+         begin
+            Log_Service.Log_Message
+              ("[Service User"
+               & SUID'Image
+               & "] Got ECHO.cfm with Value ="
+               & Confirm.all.ECHO_Cfm.Value'Image);
+         end;
 
-         exit when not Service_Provider.SAP.Is_Null (Cfm_Handle);
-      end loop;
+         --  The transaction is now complete. Release the handle to relinquish
+         --  its resources.
 
-      Service_Provider.Confirm_Barriers (SUID).Remove_From_Filter
-        (Service_Provider.SAP.Get_TID (Cfm_Handle));
+         Service_Provider.SAP.Release (Cfm_Handle);
 
-      --------------------------
-      -- Process the ECHO.cfm --
-      --------------------------
-
-      --  LibSAP ensures that the Service sends the correct kind of confirm
-      --  based on the request (in this case, that ECHO.cfm is sent in response
-      --  to an ECHO.req), and this is proved in SPARK.
-      --
-      --  LibSAP also ensures that the request in the Confirm_Handle is the
-      --  same as the original request, but this is not currently provable in
-      --  SPARK so we use an assumption.
-
-      pragma
-        Assume
-          (Service_Provider.SAP.Request_Reference (Cfm_Handle).all.Kind
-           = ECHO_Req);
-
-      declare
-         Confirm :
-           constant not null access constant Service_Provider.Confirm_Type :=
-             Service_Provider.SAP.Confirm_Reference (Cfm_Handle);
-      begin
-         Log_Service.Log_Message
-           ("[Service User"
-            & SUID'Image
-            & "] Got ECHO.cfm with Value ="
-            & Confirm.all.ECHO_Cfm.Value'Image);
-      end;
-
-      --  The transaction is now complete. Release the handle to relinquish
-      --  its resources.
-
-      Service_Provider.SAP.Release (Cfm_Handle);
-
-      pragma Unreferenced (Cfm_Handle);
+         pragma Unreferenced (Cfm_Handle);
+      end if;
    end Service_User;
 
 end Service_Users;

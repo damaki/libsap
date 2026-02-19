@@ -64,7 +64,13 @@ begin
       Req_Handle : Service_Provider.SAP.Request_Handle;
 
    begin
-      Service_Provider.SAP.Allocate_Request (Req_Handle);
+      Service_Provider.SAP.Try_Allocate_Request (Req_Handle);
+
+      if Service_Provider.SAP.Is_Null (Req_Handle) then
+         Ada.Text_IO.Put_Line ("[Service User] Allocation failed");
+         return;
+      end if;
+
       Build_Request (Req_Handle);
       Service_Provider.SAP.Send_Request (Req_Handle, Cfm_Promise);
 

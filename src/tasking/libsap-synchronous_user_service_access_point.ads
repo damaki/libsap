@@ -29,7 +29,7 @@ generic
 
 package LibSAP.Synchronous_User_Service_Access_Point with
     Elaborate_Body,
-    Abstract_State => ((Transaction_Queue with Synchronous), Queue_Memory)
+    Abstract_State => (Transaction_Queue with Synchronous)
 is
 
    type Transaction_ID is new Positive range 1 .. Queue_Capacity;
@@ -290,18 +290,6 @@ is
    -- Service Provider Operations --
    ---------------------------------
 
-   procedure Allocate_Indication (Handle : in out Indication_Handle)
-   with
-     Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    => Is_Null (Handle),
-     Post   => not Is_Null (Handle) and then not Indication_Ready (Handle);
-   --  Allocate a new indication object.
-   --
-   --  This starts a new transaction.
-   --
-   --  This is a potentially blocking operation.
-
    procedure Try_Allocate_Indication (Handle : in out Indication_Handle)
    with
      Inline,
@@ -477,7 +465,7 @@ private
         Queue_Capacity   => Queue_Capacity,
         Requires_Confirm => Requires_Response,
         Valid_Confirm    => Valid_Response);
-   pragma Part_Of (Queue_Memory);
+   pragma Part_Of (Transaction_Queue);
 
    type Indication_Handle is limited record
       Handle : STQ.Request_Handle;

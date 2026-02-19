@@ -28,7 +28,7 @@ generic
 
 package LibSAP.Synchronous_Provider_Service_Access_Point with
     Elaborate_Body,
-    Abstract_State => ((Transaction_Queue with Synchronous), Queue_Memory)
+    Abstract_State => (Transaction_Queue with Synchronous)
 is
 
    type Transaction_ID is new Positive range 1 .. Queue_Capacity;
@@ -288,18 +288,6 @@ is
    -- Service User Operations --
    -----------------------------
 
-   procedure Allocate_Request (Handle : in out Request_Handle)
-   with
-     Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    => Is_Null (Handle),
-     Post   => not Is_Null (Handle) and then not Request_Ready (Handle);
-   --  Allocate a new request object.
-   --
-   --  This starts a new transaction.
-   --
-   --  This is a potentially blocking operation.
-
    procedure Try_Allocate_Request (Handle : in out Request_Handle)
    with
      Inline,
@@ -471,7 +459,7 @@ private
         Queue_Capacity   => Queue_Capacity,
         Requires_Confirm => Requires_Confirm,
         Valid_Confirm    => Valid_Confirm);
-   pragma Part_Of (Queue_Memory);
+   pragma Part_Of (Transaction_Queue);
 
    type Request_Handle is limited record
       Handle : STQ.Request_Handle;
