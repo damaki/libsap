@@ -10,7 +10,9 @@ package body LibSAP.Singleton_Transaction_Queues
   with
     Refined_State =>
       (Transaction_Pool =>
-         (Free_Pool.Pointer_Pool, Pending_Confirms_Pool.Pointer_Pool))
+         (Free_Pool.Pointer_Pool,
+          Pending_Confirms_Pool.Pointer_Pool,
+          Discarded_Promises_Pool.Pointer_Pool))
 is
 
    type Confirm_Promise_Token (TID : Transaction_ID) is null record;
@@ -34,6 +36,9 @@ is
    with Predicate => (if Cfm_Token /= null then Cfm_Token.all.TID = TID);
 
    type Allocatable_Transaction_Data_Access is access Transaction_Data;
+
+   type Allocatable_Confirm_Promise_Token_Access is
+     access Confirm_Promise_Token;
 
    ---------------
    -- Free Pool --
@@ -78,6 +83,17 @@ is
         Element_Type   => Transaction_Data,
         Element_Access => Confirm_Pending_Transaction_Data_Access);
 
+   -----------------------------
+   -- Discarded Promises Pool --
+   -----------------------------
+
+   package Discarded_Promises_Pool is new
+     LibSAP.Pointer_Holders
+       (Element_ID     => Transaction_ID,
+        Element_Type   => Confirm_Promise_Token,
+        Element_Access => Confirm_Promise_Token_Access);
+   --  Holds pointers to discarded promises.
+
    procedure Fill_Free_Pool
    with Global => (In_Out => Free_Pool.Pointer_Pool);
    --  Allocates Transaction_Data objects (one per TID) and stores them
@@ -97,6 +113,15 @@ is
      Global => (In_Out => Pending_Confirms_Pool.Pointer_Pool),
      Pre    => Ptr /= null,
      Post   => Ptr = null;
+
+   procedure Store_In_Discarded_Promises_Pool
+     (Ptr : in out Confirm_Promise_Token_Access)
+   with
+     Global => (In_Out => Discarded_Promises_Pool.Pointer_Pool),
+     Pre    => Ptr /= null,
+     Post   => Ptr = null;
+
+   procedure Resolve_Discarded_Promise (ID : Transaction_ID);
 
    -------------------------------
    -- Pending_Request_Predicate --
@@ -464,6 +489,7 @@ is
    ------------------
 
    procedure Send_Confirm (Handle : in out Service_Handle) is
+      TID         : constant Transaction_ID := Handle.TD.all.TID;
       Temp        : Transaction_Data_Access;
       Pending_Ptr : Confirm_Pending_Transaction_Data_Access;
    begin
@@ -476,6 +502,8 @@ is
       Store_In_Pending_Confirms_Pool (Pending_Ptr);
 
       pragma Unreferenced (Pending_Ptr);
+
+      Resolve_Discarded_Promise (TID);
    end Send_Confirm;
 
    -----------------------
@@ -496,6 +524,22 @@ is
 
       pragma Unreferenced (Free_Ptr);
    end Request_Completed;
+
+   -------------
+   -- Discard --
+   -------------
+
+   procedure Discard (Promise : in out Confirm_Promise) is
+      TID : Transaction_ID;
+   begin
+      if Promise.Token /= null then
+         TID := Promise.Token.all.TID;
+
+         Store_In_Discarded_Promises_Pool (Promise.Token);
+
+         Resolve_Discarded_Promise (TID);
+      end if;
+   end Discard;
 
    ---------------------
    -- Try_Get_Confirm --
@@ -621,6 +665,86 @@ is
       end if;
    end Store_In_Pending_Confirms_Pool;
 
+   --------------------------------------
+   -- Store_In_Discarded_Promises_Pool --
+   --------------------------------------
+
+   procedure Store_In_Discarded_Promises_Pool
+     (Ptr : in out Confirm_Promise_Token_Access) is
+   begin
+      pragma Assert (Ptr /= null);
+
+      Discarded_Promises_Pool.Exchange (Ptr);
+
+      --  Rationale for pragma Assume is the same as the rationale
+      --  described in Store_In_Free_Pool.
+
+      pragma Assume (Ptr = null);
+
+      --  Defensive check for the above assumption
+
+      if Ptr /= null then
+         raise Program_Error;
+      end if;
+   end Store_In_Discarded_Promises_Pool;
+
+   -------------------------------
+   -- Resolve_Discarded_Promise --
+   -------------------------------
+
+   procedure Resolve_Discarded_Promise (ID : Transaction_ID) is
+      No_Discarded_Promise : Boolean;
+      No_Pending_Confirm   : Boolean;
+
+      Pending_Ptr : Confirm_Pending_Transaction_Data_Access;
+      Promise_Ptr : Confirm_Promise_Token_Access;
+      Temp        : Transaction_Data_Access;
+
+   begin
+
+      --  If there is both a discarded promise and a pending confirm, then
+      --  get both of them, recombine them, and release them back to the free
+      --  pool.
+
+      Pending_Confirms_Pool.Check_Is_Null (ID, No_Pending_Confirm);
+      Discarded_Promises_Pool.Check_Is_Null (ID, No_Discarded_Promise);
+
+      if (not No_Discarded_Promise) and (not No_Pending_Confirm) then
+
+         --  If the Service User discards their confirm promise at the same
+         --  time as the Service Provider sends the confirmation, then both
+         --  threads might execute this procedure at the same time.
+         --
+         --  This is safe, however, as both threads will try to get the
+         --  pending confirm pointer first, but only one of them will succeed.
+         --  The one that didn't succeed will back out.
+
+         Pending_Confirms_Pool.Retrieve (ID, Pending_Ptr);
+
+         if Pending_Ptr /= null then
+
+            Discarded_Promises_Pool.Retrieve (ID, Promise_Ptr);
+
+            --  This should never happen, since Retrieve is sequentially
+            --  consistent.
+
+            pragma Assume (Promise_Ptr /= null);
+
+            --  Defensive check just in case.
+
+            if Promise_Ptr = null then
+               raise Program_Error;
+            end if;
+
+            Temp := Transaction_Data_Access (Pending_Ptr);
+            Temp.all.Cfm_Token := Promise_Ptr;
+            Temp.all.State := Free;
+
+            Store_In_Free_Pool (Temp);
+         end if;
+      end if;
+   end Resolve_Discarded_Promise;
+
    --------------------
    -- Fill_Free_Pool --
    --------------------
@@ -629,36 +753,78 @@ is
    begin
       for I in Transaction_ID loop
          declare
-            Token : constant Confirm_Promise_Token_Access :=
-              new Confirm_Promise_Token'(TID => I);
+            --  GNATprove warns about a memory leak here because a designated
+            --  value of a general access-to-variable type is allocated on the
+            --  heap, and since the pointer was moved from a pool-specific
+            --  access-to-pointer type the object can no longer be deallocated
+            --  (moving back from a general access-to-variable type to a
+            --  pool-specific access-to-variable type is not allowed).
+            --
+            --  However, the intention here is that all objects are allocated
+            --  once during elaboration and then persist until program
+            --  termination, so we actively want to prevent deallocation
+            --  anyway. The pointers are stored in the Free_Pool immediately
+            --  after they are allocated here, so they are not leaked.
 
-            Obj : constant Allocatable_Transaction_Data_Access :=
+            Token : Confirm_Promise_Token_Access;
+            TD    : Free_Transaction_Data_Access;
+
+            Alloc_Token : Allocatable_Confirm_Promise_Token_Access;
+
+            pragma
+              Annotate
+                (GNATprove,
+                 Intentional,
+                 "resource or memory leak might occur at end of scope",
+                 "Move from pool-specific access-to-variable type to "
+                 & "general access-to-variable type is intentional. "
+                 & "This object is never meant to be deallocated; it is "
+                 & "allocated during elaboration and persists until program "
+                 & "termination.");
+
+            Alloc_TD : Allocatable_Transaction_Data_Access;
+
+            pragma
+              Annotate
+                (GNATprove,
+                 Intentional,
+                 "resource or memory leak might occur at end of scope",
+                 "Move from pool-specific access-to-variable type to "
+                 & "general access-to-variable type is intentional. "
+                 & "This object is never meant to be deallocated; it is "
+                 & "allocated during elaboration and persists until program "
+                 & "termination.");
+
+         begin
+
+            Alloc_Token := new Confirm_Promise_Token'(TID => I);
+            Token := Confirm_Promise_Token_Access (Alloc_Token);
+
+            Alloc_TD :=
               new Transaction_Data'
                 (TID       => I,
                  Request   => <>,
                  Confirm   => <>,
                  State     => Free,
                  Cfm_Token => Token);
+            TD := Free_Transaction_Data_Access (Alloc_TD);
 
-            Ptr : Free_Transaction_Data_Access :=
-              Free_Transaction_Data_Access (Obj);
-         begin
-            Free_Pool.Exchange (Ptr);
+            Free_Pool.Exchange (TD);
 
             --  Rationale for pragma Assume:
             --
             --  The Free pool is initially all null, and it is not possible for
             --  anything else to store a pointer in Free_Pool before this
-            --  package is elaborated, so Ptr must be null here.
+            --  package is elaborated, so TD must be null here.
 
             pragma
               Assume
-                (Ptr = null,
+                (TD = null,
                  "Slots in Free_Pool are initially null after elaboration");
 
             --  Defensive check for the above assumption
 
-            if Ptr /= null then
+            if TD /= null then
                raise Program_Error;
             end if;
          end;

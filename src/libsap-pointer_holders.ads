@@ -24,6 +24,14 @@ package LibSAP.Pointer_Holders with
     Always_Terminates
 is
 
+   procedure Check_Is_Null (ID : Element_ID; Is_Null : out Boolean)
+   with Inline, Global => (Input => Pointer_Pool);
+   --  Query if a pointer in a slot is currently null.
+   --
+   --  Note that even if this procedure reports Is_Null is True or False,
+   --  it is possible for another task to jump in and Exchange or Retrieve
+   --  the pointer.
+
    procedure Exchange (Element : in out Element_Access)
    with Inline, Global => (In_Out => Pointer_Pool), Pre => Element /= null;
    --  Exchange a pointer in the slot determined by Element.all.ID.

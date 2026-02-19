@@ -327,6 +327,9 @@ is
        (Requires_Confirm (Handle) => not Is_Null (Promise),
         others                    => Is_Null (Promise));
 
+   procedure Discard (Promise : in out Confirm_Promise)
+   with Global => (In_Out => Transaction_Pool), Post => Is_Null (Promise);
+
    procedure Try_Get_Confirm
      (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise)
    with
@@ -386,7 +389,7 @@ private
    type Transaction_Data_Access is access all Transaction_Data;
 
    type Confirm_Promise_Token;
-   type Confirm_Promise_Token_Access is access Confirm_Promise_Token;
+   type Confirm_Promise_Token_Access is access all Confirm_Promise_Token;
 
    function Pending_Request_Predicate
      (TD : not null Transaction_Data_Access) return Boolean;

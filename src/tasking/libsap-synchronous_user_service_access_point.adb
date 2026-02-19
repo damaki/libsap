@@ -190,6 +190,15 @@ is
       STQ.Abort_Request (Handle.Handle);
    end Abort_Indication;
 
+   -------------
+   -- Discard --
+   -------------
+
+   procedure Discard (Promise : in out Response_Promise) is
+   begin
+      STQ.Discard (Promise.Handle);
+   end Discard;
+
    -----------------------------
    -- Try_Allocate_Indication --
    -----------------------------

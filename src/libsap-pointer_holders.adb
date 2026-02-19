@@ -29,6 +29,15 @@ is
 
    Pool : Atomic_Element_Access_Array := [others => null];
 
+   -------------------
+   -- Check_Is_Null --
+   -------------------
+
+   procedure Check_Is_Null (ID : Element_ID; Is_Null : out Boolean) is
+   begin
+      Is_Null := Pool (ID) = null;
+   end Check_Is_Null;
+
    --------------
    -- Exchange --
    --------------

@@ -330,6 +330,21 @@ is
    --
    --  This is a non-blocking operation.
 
+   procedure Discard (Promise : in out Response_Promise)
+   with
+     Inline,
+     Global => (In_Out => Transaction_Pool),
+     Post   => Is_Null (Promise);
+   --  Discard a response promise.
+   --
+   --  This should be used if the Service Provider decides that they no longer
+   --  need the response to an indication.
+   --
+   --  Note that this does not prevent the Service User from seeing and
+   --  processing the indication, but rather ensures that any resources used
+   --  for the transaction are released when the Service User sends the
+   --  response.
+
    procedure Try_Get_Response
      (Handle : in out Response_Handle; Promise : in out Response_Promise)
    with

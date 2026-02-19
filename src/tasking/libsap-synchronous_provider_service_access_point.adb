@@ -189,6 +189,15 @@ is
       STQ.Abort_Request (Handle.Handle);
    end Abort_Request;
 
+   -------------
+   -- Discard --
+   -------------
+
+   procedure Discard (Promise : in out Confirm_Promise) is
+   begin
+      STQ.Discard (Promise.Handle);
+   end Discard;
+
    --------------------------
    -- Try_Allocate_Request --
    --------------------------

@@ -316,6 +316,21 @@ is
    --  This frees up the resources held by Handle without sending the request
    --  to the Service Provider.
 
+   procedure Discard (Promise : in out Confirm_Promise)
+   with
+     Inline,
+     Global => (In_Out => Transaction_Pool),
+     Post   => Is_Null (Promise);
+   --  Discard a confirm promise.
+   --
+   --  This should be used if the Service User decides that they no longer
+   --  need the confirmation to a request.
+   --
+   --  Note that this does not prevent the Service Provider from seeing and
+   --  processing the request, but rather ensures that any resources used for
+   --  the transaction are released when the Service Provider sends the
+   --  confirmation.
+
    procedure Try_Get_Confirm
      (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise)
    with
