@@ -1,0 +1,38 @@
+on:
+    push:
+      branches:
+        - main
+    pull_request:
+    workflow_dispatch:
+
+jobs:
+
+  build:
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "windows-latest"]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: alire-project/setup-alire@v4
+        with:
+          version: 2.1.0
+
+      - name: Build (validation)
+        run: |
+          alr build --validation
+
+      - name: Build examples
+        shell: bash
+        run: |
+          cd examples
+          ./build-all.sh --profile=validation
+
+      - name: Prove examples
+        shell: bash
+        run: |
+          cd examples
+          ./prove-all.sh
