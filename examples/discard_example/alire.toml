@@ -1,0 +1,22 @@
+name = "discard_example"
+description = "LibSAP example showing use of Discard"
+version = "0.1.0-dev"
+
+authors = ["Daniel King"]
+maintainers = ["Daniel King <damaki.gh@gmail.com>"]
+maintainers-logins = ["damaki"]
+licenses = "Apache-2.0 WITH LLVM-exception"
+website = ""
+tags = []
+
+executables = ["main"]
+
+[build-switches]
+"*".Ada_Version = "Ada2022"
+
+[[depends-on]]
+libsap = "*"
+gnatprove = "^15.1.0"
+
+[[pins]]
+libsap = { path = "../.." }
