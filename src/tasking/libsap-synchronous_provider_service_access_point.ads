@@ -403,6 +403,14 @@ is
    --
    --  This is a potentially blocking operation.
 
+   procedure Try_Get_Next_Request (Handle : in out Service_Handle)
+   with
+     Global => (In_Out => Transaction_Queue),
+     Pre    => Is_Null (Handle);
+   --  Get the next request from a Service User, if one is currently pending.
+   --
+   --  This is a non-blocking operation.
+
    procedure Request_Completed (Handle : in out Service_Handle)
    with
      Global => (In_Out => Transaction_Queue),

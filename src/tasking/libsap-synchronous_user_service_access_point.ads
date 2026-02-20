@@ -406,6 +406,15 @@ is
    --
    --  This is a potentially blocking operation.
 
+   procedure Try_Get_Next_Indication (Handle : in out Service_Handle)
+   with
+     Global => (In_Out => Transaction_Queue),
+     Pre    => Is_Null (Handle);
+   --  Get the next indication from a Service Provider, if one is currently
+   --  pending.
+   --
+   --  This is a non-blocking operation.
+
    procedure Indication_Completed (Handle : in out Service_Handle)
    with
      Global => (In_Out => Transaction_Queue),

@@ -49,6 +49,9 @@ is
       entry Get_Next_Indication (Handle : in out STQ.Service_Handle)
       with Pre => STQ.Is_Null (Handle), Post => not STQ.Is_Null (Handle);
 
+      procedure Try_Get_Next_Indication (Handle : in out STQ.Service_Handle)
+      with Pre => STQ.Is_Null (Handle);
+
    private
 
       Data : Valid_Holder_Data := (others => <>);
@@ -104,6 +107,32 @@ is
       begin
          Wrapper (Data);
       end Get_Next_Indication;
+
+      -----------------------------
+      -- Try_Get_Next_Indication --
+      -----------------------------
+
+      procedure Try_Get_Next_Indication (Handle : in out STQ.Service_Handle) is
+
+         --  Operate on type Holder_Data instead of Valid_Holder_Data to
+         --  allow the type predicate to be (temporarily) violated.
+
+         procedure Wrapper (HD : in out Holder_Data)
+         with
+           Inline,
+           Pre  => Is_Valid (HD) and then STQ.Is_Null (Handle),
+           Post => Is_Valid (HD);
+
+         procedure Wrapper (HD : in out Holder_Data) is
+         begin
+            STQ.Try_Get_Next_Request (HD.Queue, Handle);
+
+            HD.Has_Pending_Indication := STQ.Has_Pending_Request (HD.Queue);
+         end Wrapper;
+
+      begin
+         Wrapper (Data);
+      end Try_Get_Next_Indication;
 
    end Protected_Queue;
 
@@ -304,6 +333,15 @@ is
    begin
       Protected_Queue.Get_Next_Indication (Handle.Handle);
    end Get_Next_Indication;
+
+   -----------------------------
+   -- Try_Get_Next_Indication --
+   -----------------------------
+
+   procedure Try_Get_Next_Indication (Handle : in out Service_Handle) is
+   begin
+      Protected_Queue.Try_Get_Next_Indication (Handle.Handle);
+   end Try_Get_Next_Indication;
 
    --------------------------
    -- Indication_Completed --
