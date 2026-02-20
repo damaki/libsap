@@ -4,7 +4,6 @@
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
-with Ada.Synchronous_Task_Control;
 with Ada.Text_IO;
 
 with Service_Provider;
@@ -18,7 +17,7 @@ with
     (In_Out =>
        (Ada.Text_IO.File_System,
         Service_Provider.SAP.Transaction_Queue,
-        Service_Provider.Confirm_Pending))
+        Service_Provider.Confirm_Barrier))
 is
    use all type Service_Provider.Request_Kind;
 
@@ -92,8 +91,7 @@ begin
 
       exit when not Service_Provider.SAP.Is_Null (Cfm_Handle);
 
-      Ada.Synchronous_Task_Control.Suspend_Until_True
-        (Service_Provider.Confirm_Pending);
+      Service_Provider.Confirm_Barrier.Wait_For_Confirm;
    end loop;
 
    --------------------------
