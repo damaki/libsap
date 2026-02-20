@@ -7,7 +7,6 @@
 pragma Profile (Jorvik);
 pragma Partition_Elaboration_Policy (Sequential);
 
-with Ada.Synchronous_Task_Control;
 with System;
 with LibSAP.Synchronous_Provider_Service_Access_Point;
 
@@ -114,14 +113,19 @@ is
    --  The SAP does not provide a mechanism to block (wait) for a confirm
    --  primitive to be posted for a specific transaction. Since this example
    --  has a single Service User (the Main procedure), we use a simple
-   --  Suspension_Object to allow it to block until a confirm has been
-   --  posted.
+   --  protected object to allow it to block until it is notified by the
+   --  Service Provider.
 
-   Confirm_Pending : Ada.Synchronous_Task_Control.Suspension_Object;
+   protected Confirm_Barrier is
+      entry Wait_For_Confirm;
+      procedure Notify_Confirm_Pending;
+   private
+      Confirm_Pending : Boolean := False;
+   end Confirm_Barrier;
 
    task Service_Provider_Task
      with
        Global =>
-         (In_Out => (SAP.Transaction_Queue, Confirm_Pending));
+         (In_Out => (SAP.Transaction_Queue, Confirm_Barrier));
 
 end Service_Provider;

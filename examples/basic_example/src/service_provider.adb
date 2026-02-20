@@ -12,6 +12,32 @@ is
    is (A > Natural'Last - B);
    --  Returns True if A + B would overflow
 
+   ---------------------
+   -- Confirm_Barrier --
+   ---------------------
+
+   protected body Confirm_Barrier is
+
+      ----------------------
+      -- Wait_For_Confirm --
+      ----------------------
+
+      entry Wait_For_Confirm when Confirm_Pending is
+      begin
+         Confirm_Pending := False;
+      end Wait_For_Confirm;
+
+      ----------------------------
+      -- Notify_Confirm_Pending --
+      ----------------------------
+
+      procedure Notify_Confirm_Pending is
+      begin
+         Confirm_Pending := True;
+      end Notify_Confirm_Pending;
+
+   end Confirm_Barrier;
+
    ---------------------------
    -- Service_Provider_Task --
    ---------------------------
@@ -107,13 +133,12 @@ is
          Process_Request (Handle);
 
          --  Send the confirmation (if one is required) and notify the
-         --  Service User task that it is pending by setting the
-         --  Confirm_Pending suspension object to True.
+         --  Service User task that it is pending.
 
          if SAP.Requires_Confirm (Handle) then
             SAP.Send_Confirm (Handle);
 
-            Ada.Synchronous_Task_Control.Set_True (Confirm_Pending);
+            Confirm_Barrier.Notify_Confirm_Pending;
 
          else
             SAP.Request_Completed (Handle);
