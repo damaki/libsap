@@ -70,6 +70,8 @@ is
               (Service_Provider.SAP.Get_TID (Handle));
 
             Service_Provider.SAP.Send_Request (Handle, Cfm_Promise);
+
+            pragma Unreferenced (Handle);
          end if;
       end;
 
@@ -127,6 +129,13 @@ is
 
          pragma Unreferenced (Cfm_Handle);
       end if;
+
+      --  Tasks cannot terminate in SPARK, but there's nothing more for this
+      --  task to do in this example, so sit in an infinite sleep loop.
+
+      loop
+         delay until Ada.Real_Time.Time_Last;
+      end loop;
    end Service_User;
 
 end Service_Users;

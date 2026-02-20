@@ -52,6 +52,8 @@ is
 
    begin
       loop
+         pragma Loop_Invariant (SAP.Is_Null (Handle));
+
          SAP.Try_Allocate_Request (Handle);
          exit when not SAP.Is_Null (Handle);
       end loop;
@@ -60,6 +62,7 @@ is
       SAP.Send_Request (Handle, Cfm_Promise);
 
       pragma Unreferenced (Handle);
+      pragma Unreferenced (Cfm_Promise);
    end Log_Message;
 
    --------------
