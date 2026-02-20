@@ -7,6 +7,18 @@ on:
 
 jobs:
 
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      directories: ${{ steps.list-dirs.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list-dirs
+        run: |
+          # Finds example subdirs and creates a JSON array ["dir1", "dir2"]
+          DIRS=$(find examples -maxdepth 1 -mindepth 1 -type d -printf '%P\n' | jq -R -s -c 'split("\n")[:-1]')
+          echo "matrix=$DIRS" >> $GITHUB_OUTPUT
+
   build:
     strategy:
       matrix:
@@ -15,7 +27,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: alire-project/setup-alire@v4
         with:
@@ -31,8 +43,28 @@ jobs:
           cd examples
           ./build-all.sh --profile=validation
 
-      - name: Prove examples
+  prove:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        subdir: ${{ fromJson(needs.setup.outputs.directories) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: alire-project/setup-alire@v4
+        with:
+          version: 2.1.0
+
+      - name: Prove example ${{ matrix.subdir }}
         shell: bash
         run: |
-          cd examples
-          ./prove-all.sh
+          cd examples/${{ matrix.subdir }}
+          alr build --stop-after=generation
+          alr exec -- gnatprove \
+            -P ${{ matrix.subdir}}.gpr \
+            --level=1 \
+            -j0 \
+            --warnings=error \
+            --checks-as-errors=on
