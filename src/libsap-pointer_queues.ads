@@ -51,8 +51,21 @@ package LibSAP.Pointer_Queues with Pure, SPARK_Mode, Always_Terminates is
 
 private
 
-   subtype Logical_Index_Type is Positive range 1 .. Queue_Capacity;
-   subtype Physical_Index_Type is Positive range 1 .. Queue_Capacity;
+   --  The queue is implemented as a ring buffer.
+   --
+   --  It is sometimes convenient to be able to index elements relative to the
+   --  first one. For example, refer to elements in the range 1 .. Length.
+   --  However, the first element in the ring buffer is not always at index
+   --  1 in the array. To manage this we use two indexing schemes:
+   --
+   --  The logical index is the index relative to the first element, so
+   --  1 refers to the first element.
+   --
+   --  The physical index is the index of the element in the ring buffer.
+
+   subtype Index_Type is Positive range 1 .. Queue_Capacity;
+   subtype Logical_Index_Type is Index_Type;
+   subtype Physical_Index_Type is Index_Type;
 
    type Element_Access_Array is array (Physical_Index_Type) of Element_Access;
 
@@ -63,17 +76,33 @@ private
    end record;
 
    function Physical_Index
-     (Queue : Queue_Type; I : Logical_Index_Type)
+     (First : Physical_Index_Type; I : Logical_Index_Type)
       return Physical_Index_Type'Base
-   is (if I <= (Queue_Capacity - Queue.First) + 1
-       then Queue.First + (I - 1)
-       else 1 + ((I - 2) - Integer (Queue_Capacity - Queue.First)))
-   with Post => Physical_Index'Result in Physical_Index_Type;
+   is (if I <= (Queue_Capacity - First) + 1
+       then First + (I - 1)
+       else 1 + ((I - 2) - (Queue_Capacity - First)));
    --  Maps a logical index to its physical index in the Queue.Items array
 
+   function Increment_Wrapping (I : Index_Type) return Index_Type
+   is (if I = Index_Type'Last
+       then 1
+       else
+
+         --  Add 1 or 0 to work around a compiler warning when
+         --  Queue_Capacity = 1 where the compiler thinks that I + 1 would
+         --  overflow, even though the above 'if' condition guards against that
+         --  case.
+         --
+         --  This should fold down to a simple constant at compile time
+         --  so should be equivalent to I + 1.
+
+          (I + (if Index_Type'First /= Index_Type'Last then 1 else 0)));
+
    function Is_Null_At
-     (Queue : Queue_Type; I : Logical_Index_Type) return Boolean
-   is (Queue.Items (Physical_Index (Queue, I)) = null)
+     (Items : Element_Access_Array;
+      First : Physical_Index_Type;
+      I     : Logical_Index_Type) return Boolean
+   is (Items (Physical_Index (First, I)) = null)
    with Ghost;
 
    ------------
@@ -87,8 +116,11 @@ private
    -- Is_Valid --
    --------------
 
+   --  A valid queue has non-null pointers in the logical range 1 .. Length
+   --  and null pointers at all other positions.
+
    function Is_Valid (Queue : Queue_Type) return Boolean
    is (for all I in Logical_Index_Type =>
-         (I <= Queue.Length) = not Is_Null_At (Queue, I));
+         (I <= Queue.Length) = not Is_Null_At (Queue.Items, Queue.First, I));
 
 end LibSAP.Pointer_Queues;
