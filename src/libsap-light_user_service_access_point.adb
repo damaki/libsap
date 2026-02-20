@@ -205,6 +205,13 @@ is
       STQ.Send_Request (Queue, Handle.Handle, Promise.Handle);
    end Send_Indication;
 
+   ----------------------------
+   -- Has_Pending_Indication --
+   ----------------------------
+
+   function Has_Pending_Indication return Boolean
+   is (STQ.Has_Pending_Request (Queue));
+
    -----------------------------
    -- Try_Get_Next_Indication --
    -----------------------------

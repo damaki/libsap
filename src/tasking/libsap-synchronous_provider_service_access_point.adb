@@ -46,6 +46,8 @@ is
           (STQ.Requires_Confirm (Handle) => not STQ.Is_Null (Promise),
            others                        => STQ.Is_Null (Promise));
 
+      function Has_Pending_Request return Boolean;
+
       entry Get_Next_Request (Handle : in out STQ.Service_Handle)
       with Pre => STQ.Is_Null (Handle), Post => not STQ.Is_Null (Handle);
 
@@ -76,6 +78,13 @@ is
 
          Data.Has_Pending_Request := True;
       end Send_Request;
+
+      -------------------------
+      -- Has_Pending_Request --
+      -------------------------
+
+      function Has_Pending_Request return Boolean
+      is (STQ.Has_Pending_Request (Data.Queue));
 
       ----------------------
       -- Get_Next_Request --
@@ -321,6 +330,13 @@ is
    begin
       Protected_Queue.Send_Request (Handle.Handle, Promise.Handle);
    end Send_Request;
+
+   -------------------------
+   -- Has_Pending_Request --
+   -------------------------
+
+   function Has_Pending_Request return Boolean
+   is (Protected_Queue.Has_Pending_Request);
 
    ----------------------
    -- Get_Next_Request --

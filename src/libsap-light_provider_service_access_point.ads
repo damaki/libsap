@@ -372,10 +372,11 @@ is
    -- Service Provider Operations --
    ---------------------------------
 
+   function Has_Pending_Request return Boolean
+   with Global => (Input => Transaction_Queue);
+
    procedure Try_Get_Next_Request (Handle : in out Service_Handle)
-   with
-     Global => (In_Out => Transaction_Queue),
-     Pre    => Is_Null (Handle);
+   with Global => (In_Out => Transaction_Queue), Pre => Is_Null (Handle);
    --  Try to get the next pending request
 
    procedure Request_Completed (Handle : in out Service_Handle)

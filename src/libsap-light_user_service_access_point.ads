@@ -393,6 +393,9 @@ is
    -- Service User Operations --
    -----------------------------
 
+   function Has_Pending_Indication return Boolean
+   with Global => (Input => Transaction_Queue);
+
    procedure Try_Get_Next_Indication (Handle : in out Service_Handle)
    with
      Global => (In_Out => Transaction_Queue),

@@ -202,6 +202,13 @@ is
       STQ.Send_Request (Queue, Handle.Handle, Promise.Handle);
    end Send_Request;
 
+   -------------------------
+   -- Has_Pending_Request --
+   -------------------------
+
+   function Has_Pending_Request return Boolean
+   is (STQ.Has_Pending_Request (Queue));
+
    --------------------------
    -- Try_Get_Next_Request --
    --------------------------

@@ -397,6 +397,9 @@ is
    -- Service User Operations --
    -----------------------------
 
+   function Has_Pending_Indication return Boolean
+   with Global => (Input => Transaction_Queue), Volatile_Function;
+
    procedure Get_Next_Indication (Handle : in out Service_Handle)
    with
      Global => (In_Out => Transaction_Queue),
@@ -407,9 +410,7 @@ is
    --  This is a potentially blocking operation.
 
    procedure Try_Get_Next_Indication (Handle : in out Service_Handle)
-   with
-     Global => (In_Out => Transaction_Queue),
-     Pre    => Is_Null (Handle);
+   with Global => (In_Out => Transaction_Queue), Pre => Is_Null (Handle);
    --  Get the next indication from a Service Provider, if one is currently
    --  pending.
    --
