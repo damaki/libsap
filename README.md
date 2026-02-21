@@ -112,7 +112,9 @@ Requests are queued in the SAP in first-in first-out (FIFO) order.
 
 * Zero-copy message passing.
 * Bounded memory usage.
-* Suitable for bare-metal embedded systems.
+* Suitable for bare-metal embedded systems, both with and without multitasking.
+  * compatible with environments without tasking (e.g. "light" GNAT runtimes).
+  * compatible with Ravenscar and Jorvik profiles.
 * Supports formal verification with SPARK.
 
 LibSAP's API is designed so that it can only be used in the correct manner.
@@ -130,23 +132,12 @@ In particular, the SPARK proofs ensure that:
 
 ## Limitations
 
-
 ### Liveliness
 While LibSAP is able to enforce correct API usage, it cannot guarantee
 liveliness. That is, it cannot guarantee that a Service Provider task will
 actually read and respond to requests. It is the user's responsibility to
 ensure that their tasks respond to requests within the appropriate deadlines
 for their system.
-
-### Tasking Restrictions
-LibSAP is written in SPARK and is therefore subject to the Jorvik tasking
-profile and the sequential partition elaboration policy. These are set with
-the following partition-wide pragmas:
-
-```ada
-pragma Profile (Jorvik);
-pragma Partition_Elaboration_Policy (Sequential);
-```
 
 ### Ownership Semantics on Primitives
 Service Primitives transferred using LibSAP cannot have ownership semantics.

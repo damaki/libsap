@@ -9,9 +9,6 @@
 --
 --  See the SPARK User's Guide (26.1) section 5.10
 
-pragma Profile (Jorvik);
-pragma Partition_Elaboration_Policy (Sequential);
-
 package body LibSAP.Synchronous_Provider_Service_Access_Point
   with
     Refined_State =>
