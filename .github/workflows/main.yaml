@@ -23,6 +23,7 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-latest", "windows-latest"]
+        gnat_version: ["^14", "^15"]
 
     runs-on: ${{ matrix.os }}
 
@@ -32,6 +33,7 @@ jobs:
       - uses: alire-project/setup-alire@v4
         with:
           version: 2.1.0
+          toolchain: gnat_native${{ matrix.gnat_version }} gprbuild --disable-assistant
 
       - name: Build (validation)
         run: |
