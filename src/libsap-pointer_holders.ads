@@ -30,7 +30,9 @@ is
    --
    --  Note that even if this procedure reports Is_Null is True or False,
    --  it is possible for another task to jump in and Exchange or Retrieve
-   --  the pointer.
+   --  the pointer between the calls to Check_Is_Null and Exchange/Retrieve.
+   --
+   --  This uses the relaxed memory order.
 
    procedure Exchange (Element : in out Element_Access)
    with Inline, Global => (In_Out => Pointer_Pool), Pre => Element /= null;
@@ -39,6 +41,8 @@ is
    --  This exchanges Element with the pool already stored at that position.
    --  If the pool did not contain an element at that position, then Element
    --  is set to null.
+   --
+   --  This uses sequentially consistent memory order.
 
    procedure Retrieve (ID : Element_ID; Element : out Element_Access)
    with
@@ -51,5 +55,7 @@ is
    --  at ID (possibly null).
    --
    --  The slot in the pool is set to null.
+   --
+   --  This uses sequentially consistent memory order.
 
 end LibSAP.Pointer_Holders;
