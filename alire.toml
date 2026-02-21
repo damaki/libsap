@@ -9,6 +9,9 @@ licenses = "Apache-2.0 WITH LLVM-exception"
 website = ""
 tags = ["protocol", "protocols", "nostd", "spark"]
 
+[[depends-on]]
+gnat = ">=14"
+
 [build-switches]
 "*".Ada_Version = "Ada2022"
 
