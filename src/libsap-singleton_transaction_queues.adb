@@ -377,19 +377,34 @@ is
    --------------------------
 
    procedure Try_Allocate_Request (Handle : in out Request_Handle) is
+      Slot_Is_Null : Boolean;
    begin
       for I in Transaction_ID loop
          declare
             Free_Ptr : Free_Transaction_Data_Access;
             Temp     : Transaction_Data_Access;
          begin
-            Free_Pool.Retrieve (I, Free_Ptr);
+            --  Check if it's null before calling Retrieve.
+            --
+            --  Check_Is_Null uses a weaker memory order than Retrieve, so
+            --  only calling Retrieve if it appears to be non-null should
+            --  reduce the amount of cache coherency traffic.
 
-            if Free_Ptr /= null then
-               Temp := Transaction_Data_Access (Free_Ptr);
-               Temp.all.State := Request_Allocated;
-               Handle.TD := Temp;
-               exit;
+            Free_Pool.Check_Is_Null (I, Slot_Is_Null);
+
+            if not Slot_Is_Null then
+
+               Free_Pool.Retrieve (I, Free_Ptr);
+
+               --  Note that another task might have jumped in between
+               --  Check_Is_Null and Retrieve and gotten the pointer first.
+
+               if Free_Ptr /= null then
+                  Temp := Transaction_Data_Access (Free_Ptr);
+                  Temp.all.State := Request_Allocated;
+                  Handle.TD := Temp;
+                  exit;
+               end if;
             end if;
          end;
       end loop;
