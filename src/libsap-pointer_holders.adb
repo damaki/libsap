@@ -35,6 +35,10 @@ is
       Acq_Rel => 4,
       Seq_Cst => 5);
 
+   ---------------------
+   -- Atomic_Exchange --
+   ---------------------
+
    function Atomic_Exchange
      (Ptr : System.Address; Val : Element_Access; Order : Mem_Order := Seq_Cst)
       return Element_Access
@@ -92,6 +96,52 @@ is
       end case;
    end Atomic_Exchange;
 
+   -----------------
+   -- Atomic_Load --
+   -----------------
+
+   function Atomic_Load
+     (Ptr : System.Address; Order : Mem_Order := Seq_Cst) return Element_Access
+   is
+      pragma Warnings (Off);
+
+      function Intrinsic8
+        (Ptr : System.Address; Model : Integer) return Element_Access;
+      pragma Import (Intrinsic, Intrinsic8, "__atomic_load_1");
+
+      function Intrinsic16
+        (Ptr : System.Address; Model : Integer) return Element_Access;
+      pragma Import (Intrinsic, Intrinsic16, "__atomic_load_2");
+
+      function Intrinsic32
+        (Ptr : System.Address; Model : Integer) return Element_Access;
+      pragma Import (Intrinsic, Intrinsic32, "__atomic_load_4");
+
+      function Intrinsic64
+        (Ptr : System.Address; Model : Integer) return Element_Access;
+      pragma Import (Intrinsic, Intrinsic64, "__atomic_load_8");
+
+      pragma Warnings (On);
+
+   begin
+      case Element_Access'Object_Size is
+         when 8      =>
+            return Intrinsic8 (Ptr, Order'Enum_Rep);
+
+         when 16     =>
+            return Intrinsic16 (Ptr, Order'Enum_Rep);
+
+         when 32     =>
+            return Intrinsic32 (Ptr, Order'Enum_Rep);
+
+         when 64     =>
+            return Intrinsic64 (Ptr, Order'Enum_Rep);
+
+         when others =>
+            raise Program_Error;
+      end case;
+   end Atomic_Load;
+
    type Element_Access_Array is array (Element_ID) of aliased Element_Access
    with Atomic_Components;
 
@@ -102,8 +152,10 @@ is
    -------------------
 
    procedure Check_Is_Null (ID : Element_ID; Is_Null : out Boolean) is
+      Element : constant Element_Access :=
+        Atomic_Load (Pool (ID)'Address, Relaxed);
    begin
-      Is_Null := Pool (ID) = null;
+      Is_Null := Element = null;
    end Check_Is_Null;
 
    --------------
