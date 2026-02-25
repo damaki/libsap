@@ -1,0 +1,22 @@
+name = "unit_tests"
+description = "Unit tests for LibSAP"
+version = "0.1.0-dev"
+
+authors = ["Daniel King"]
+maintainers = ["Daniel King <damaki.gh@gmail.com>"]
+maintainers-logins = ["damaki"]
+licenses = "Apache-2.0 WITH LLVM-exception"
+website = ""
+tags = []
+
+executables = ["unit_tests"]
+
+[build-switches]
+"*".Ada_Version = "Ada2022"
+
+[[depends-on]]
+aunit = "^26.0.0"
+libsap = "*"
+
+[[pins]]
+libsap = { path='../..' }
