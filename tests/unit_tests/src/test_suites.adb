@@ -1,0 +1,16 @@
+
+with LibSAP.Pointer_Holder_Tests;
+with LibSAP.Pointer_Queues_Tests;
+
+package body Test_Suites is
+
+   function Suite return Access_Test_Suite
+   is
+      Ret : constant Access_Test_Suite := new Test_Suite;
+   begin
+      Ret.Add_Test (LibSAP.Pointer_Holder_Tests.Suite);
+      Ret.Add_Test (LibSAP.Pointer_Queues_Tests.Suite);
+      return Ret;
+   end Suite;
+
+end Test_Suites;

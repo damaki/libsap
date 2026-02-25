@@ -6,11 +6,11 @@
 with AUnit.Reporter.Text;
 with AUnit.Run;
 
-with LibSAP.Pointer_Holder_Tests;
+with Test_Suites;
 
 procedure Unit_Tests is
    procedure Runner is new
-     AUnit.Run.Test_Runner (LibSAP.Pointer_Holder_Tests.Suite);
+     AUnit.Run.Test_Runner (Test_Suites.Suite);
 
    Reporter : AUnit.Reporter.Text.Text_Reporter;
 begin
