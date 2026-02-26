@@ -1,6 +1,8 @@
 
 with LibSAP.Pointer_Holder_Tests;
 with LibSAP.Pointer_Queues_Tests;
+with Synchronous_Provider_SAP_Tests;
+with Synchronous_User_SAP_Tests;
 
 package body Test_Suites is
 
@@ -10,6 +12,8 @@ package body Test_Suites is
    begin
       Ret.Add_Test (LibSAP.Pointer_Holder_Tests.Suite);
       Ret.Add_Test (LibSAP.Pointer_Queues_Tests.Suite);
+      Ret.Add_Test (Synchronous_Provider_SAP_Tests.Suite);
+      Ret.Add_Test (Synchronous_User_SAP_Tests.Suite);
       return Ret;
    end Suite;
 
