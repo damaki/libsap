@@ -43,16 +43,16 @@ package body Synchronous_User_SAP_Tests is
    -- Response_Type --
    ------------------
 
-   type Response_Kind is (CFM_1);
+   type Response_Kind is (RES_1);
 
-   type CFM_1_Type is record
+   type RES_1_Type is record
       Value : Integer := 0;
    end record;
 
-   type Response_Type (Kind : Response_Kind := CFM_1) is record
+   type Response_Type (Kind : Response_Kind := RES_1) is record
       case Kind is
-         when CFM_1 =>
-            CFM_1 : CFM_1_Type;
+         when RES_1 =>
+            RES_1 : RES_1_Type;
       end case;
    end record;
 
@@ -118,7 +118,7 @@ package body Synchronous_User_SAP_Tests is
             Assert
               (Indication.IND_1.Value = 123,
                "got wrong indication value: " & Indication.IND_1.Value'Image);
-            Response := (Kind => CFM_1, CFM_1 => (Value => 321));
+            Response := (Kind => RES_1, RES_1 => (Value => 321));
          end Build;
 
          procedure Build_Response is new SAP.Build_Response (Build);
@@ -138,11 +138,227 @@ package body Synchronous_User_SAP_Tests is
          Res_Ref : constant not null access constant Response_Type :=
            SAP.Response_Reference (Res_Handle);
       begin
-         Assert (Res_Ref.all.CFM_1.Value = 321, "got wrong response value");
+         Assert (Res_Ref.all.RES_1.Value = 321, "got wrong response value");
       end;
 
       SAP.Release (Res_Handle);
    end Test_One_Normal_Transaction;
+
+   --------------------------------------
+   -- Test_Discard_Before_Response_Sent --
+   --------------------------------------
+
+   --  This test checks that when discarding a Response_Promise before the
+   --  service has sent the confirmation causes the transaction to be properly
+   --  released back to the free pool.
+
+   package Test_Discard_Before_Response_Sent_SAP is new
+     LibSAP.Synchronous_User_Service_Access_Point
+       (Indication_Type   => Indication_Type,
+        Response_Type     => Response_Type,
+        Queue_Capacity    => 3,
+        Priority          => System.Priority'Last,
+        Requires_Response => Requires_Response,
+        Valid_Response    => Valid_Response);
+
+   procedure Test_Discard_Before_Response_Sent (T : in out Test) is
+      package SAP renames Test_Discard_Before_Response_Sent_SAP;
+
+      use type SAP.Transaction_ID;
+
+      Req_Handle  : SAP.Indication_Handle;
+      Cfm_Promise : SAP.Response_Promise;
+      S_Handle    : SAP.Service_Handle;
+      TID         : SAP.Transaction_ID;
+
+   begin
+
+      --  Send a indication to get a confirm promise
+
+      SAP.Try_Allocate_Indication (Req_Handle);
+      Assert (not SAP.Is_Null (Req_Handle), "indication allocation failed");
+
+      declare
+         procedure Build (Indication : out Indication_Type) is
+         begin
+            Indication := (Kind => IND_1, IND_1 => (Value => 123));
+         end Build;
+
+         procedure Build_Indication is new SAP.Build_Indication (Build);
+      begin
+         Build_Indication (Req_Handle);
+      end;
+
+      SAP.Send_Indication (Req_Handle, Cfm_Promise);
+      Assert (not SAP.Is_Null (Cfm_Promise), "did not get confirm promise");
+
+      --  Discard the confirm promise
+
+      TID := SAP.Get_TID (Cfm_Promise);
+      SAP.Discard (Cfm_Promise);
+
+      --  Process the indication and send the confirm
+
+      SAP.Try_Get_Next_Indication (S_Handle);
+      Assert (not SAP.Is_Null (S_Handle), "failed to get next indication");
+
+      declare
+         procedure Build
+           (Indication : Indication_Type; Response : out Response_Type) is
+         begin
+            Assert
+              (Indication.Kind = IND_1,
+               "got wrong indication kind: " & Indication.Kind'Image);
+            Assert
+              (Indication.IND_1.Value = 123,
+               "got wrong indication value: " & Indication.IND_1.Value'Image);
+            Response := (Kind => RES_1, RES_1 => (Value => 321));
+         end Build;
+
+         procedure Build_Response is new SAP.Build_Response (Build);
+      begin
+         Build_Response (S_Handle);
+      end;
+
+      --  The transaction should be completed and released back to the free
+      --  pool when the confirm is sent.
+
+      SAP.Send_Response (S_Handle);
+
+      --  Check that the transaction can be reallocated.
+      --
+      --  At this point, all transactions should be in the free pool, so we
+      --  can reallocate all of them.
+
+      declare
+         Handles : array (SAP.Transaction_ID) of SAP.Indication_Handle;
+      begin
+         for I in SAP.Transaction_ID loop
+            SAP.Try_Allocate_Indication (Handles (I));
+
+            Assert
+              (not SAP.Is_Null (Handles (I)),
+               "failed to reallocate handle on allocation #" & I'Image);
+         end loop;
+
+         Assert
+           ((for some I in Handles'Range => SAP.Get_TID (Handles (I)) = TID),
+            "discarded transaction was not reallocated");
+
+         --  Release resources
+
+         for I in Handles'Range loop
+            SAP.Abort_Indication (Handles (I));
+         end loop;
+      end;
+   end Test_Discard_Before_Response_Sent;
+
+   --------------------------------------
+   -- Test_Discard_After_Response_Sent --
+   --------------------------------------
+
+   --  This test checks that when discarding a Response_Promise after the
+   --  service has sent the confirmation causes the transaction to be properly
+   --  released back to the free pool.
+
+   package Test_Discard_After_Response_Sent_SAP is new
+     LibSAP.Synchronous_User_Service_Access_Point
+       (Indication_Type   => Indication_Type,
+        Response_Type     => Response_Type,
+        Queue_Capacity    => 3,
+        Priority          => System.Priority'Last,
+        Requires_Response => Requires_Response,
+        Valid_Response    => Valid_Response);
+
+   procedure Test_Discard_After_Response_Sent (T : in out Test) is
+      package SAP renames Test_Discard_After_Response_Sent_SAP;
+
+      use type SAP.Transaction_ID;
+
+      Req_Handle  : SAP.Indication_Handle;
+      Cfm_Promise : SAP.Response_Promise;
+      S_Handle    : SAP.Service_Handle;
+      TID         : SAP.Transaction_ID;
+
+   begin
+
+      --  Send a indication to get a confirm promise
+
+      SAP.Try_Allocate_Indication (Req_Handle);
+      Assert (not SAP.Is_Null (Req_Handle), "indication allocation failed");
+
+      declare
+         procedure Build (Indication : out Indication_Type) is
+         begin
+            Indication := (Kind => IND_1, IND_1 => (Value => 123));
+         end Build;
+
+         procedure Build_Indication is new SAP.Build_Indication (Build);
+      begin
+         Build_Indication (Req_Handle);
+      end;
+
+      SAP.Send_Indication (Req_Handle, Cfm_Promise);
+      Assert (not SAP.Is_Null (Cfm_Promise), "did not get confirm promise");
+
+      --  Process the indication and send the confirm
+
+      SAP.Try_Get_Next_Indication (S_Handle);
+      Assert (not SAP.Is_Null (S_Handle), "failed to get next indication");
+
+      declare
+         procedure Build
+           (Indication : Indication_Type; Response : out Response_Type) is
+         begin
+            Assert
+              (Indication.Kind = IND_1,
+               "got wrong indication kind: " & Indication.Kind'Image);
+            Assert
+              (Indication.IND_1.Value = 123,
+               "got wrong indication value: " & Indication.IND_1.Value'Image);
+            Response := (Kind => RES_1, RES_1 => (Value => 321));
+         end Build;
+
+         procedure Build_Response is new SAP.Build_Response (Build);
+      begin
+         Build_Response (S_Handle);
+      end;
+
+      SAP.Send_Response (S_Handle);
+
+      --  Discard the confirm promise. The transaction should be released back
+      --  to the free pool at this point.
+
+      TID := SAP.Get_TID (Cfm_Promise);
+      SAP.Discard (Cfm_Promise);
+
+      --  Check that the transaction can be reallocated.
+      --
+      --  At this point, all transactions should be in the free pool, so we
+      --  can reallocate all of them.
+
+      declare
+         Handles : array (SAP.Transaction_ID) of SAP.Indication_Handle;
+      begin
+         for I in SAP.Transaction_ID loop
+            SAP.Try_Allocate_Indication (Handles (I));
+
+            Assert
+              (not SAP.Is_Null (Handles (I)),
+               "failed to reallocate handle on allocation #" & I'Image);
+         end loop;
+
+         Assert
+           ((for some I in Handles'Range => SAP.Get_TID (Handles (I)) = TID),
+            "discarded transaction was not reallocated");
+
+         --  Release resources
+
+         for I in Handles'Range loop
+            SAP.Abort_Indication (Handles (I));
+         end loop;
+      end;
+   end Test_Discard_After_Response_Sent;
 
    -----------
    -- Suite --
@@ -156,6 +372,16 @@ package body Synchronous_User_SAP_Tests is
            ("[Synchronous_User_Service_Access_Point] "
             & "Test_One_Normal_Transaction",
             Test_One_Normal_Transaction'Access));
+      Ret.Add_Test
+        (Test_Caller.Create
+           ("[Synchronous_User_Service_Access_Point] "
+            & "Test_Discard_Before_Response_Sent",
+            Test_Discard_Before_Response_Sent'Access));
+      Ret.Add_Test
+        (Test_Caller.Create
+           ("[Synchronous_User_Service_Access_Point] "
+            & "Test_Discard_After_Response_Sent",
+            Test_Discard_After_Response_Sent'Access));
       return Ret;
    end Suite;
 

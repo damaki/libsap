@@ -141,6 +141,220 @@ package body Light_Provider_SAP_Tests is
       SAP.Release (Cfm_Handle);
    end Test_One_Normal_Transaction;
 
+   --------------------------------------
+   -- Test_Discard_Before_Confirm_Sent --
+   --------------------------------------
+
+   --  This test checks that when discarding a Confirm_Promise before the
+   --  service has sent the confirmation causes the transaction to be properly
+   --  released back to the free pool.
+
+   package Test_Discard_Before_Confirm_Sent_SAP is new
+     LibSAP.Light_Provider_Service_Access_Point
+       (Request_Type     => Request_Type,
+        Confirm_Type     => Confirm_Type,
+        Queue_Capacity   => 3,
+        Requires_Confirm => Requires_Confirm,
+        Valid_Confirm    => Valid_Confirm);
+
+   procedure Test_Discard_Before_Confirm_Sent (T : in out Test) is
+      package SAP renames Test_Discard_Before_Confirm_Sent_SAP;
+
+      use type SAP.Transaction_ID;
+
+      Req_Handle  : SAP.Request_Handle;
+      Cfm_Promise : SAP.Confirm_Promise;
+      S_Handle    : SAP.Service_Handle;
+      TID         : SAP.Transaction_ID;
+
+   begin
+
+      --  Send a request to get a confirm promise
+
+      SAP.Try_Allocate_Request (Req_Handle);
+      Assert (not SAP.Is_Null (Req_Handle), "request allocation failed");
+
+      declare
+         procedure Build (Request : out Request_Type) is
+         begin
+            Request := (Kind => REQ_1, REQ_1 => (Value => 123));
+         end Build;
+
+         procedure Build_Request is new SAP.Build_Request (Build);
+      begin
+         Build_Request (Req_Handle);
+      end;
+
+      SAP.Send_Request (Req_Handle, Cfm_Promise);
+      Assert (not SAP.Is_Null (Cfm_Promise), "did not get confirm promise");
+
+      --  Discard the confirm promise
+
+      TID := SAP.Get_TID (Cfm_Promise);
+      SAP.Discard (Cfm_Promise);
+
+      --  Process the request and send the confirm
+
+      SAP.Try_Get_Next_Request (S_Handle);
+      Assert (not SAP.Is_Null (S_Handle), "failed to get next request");
+
+      declare
+         procedure Build (Request : Request_Type; Confirm : out Confirm_Type)
+         is
+         begin
+            Assert
+              (Request.Kind = REQ_1,
+               "got wrong request kind: " & Request.Kind'Image);
+            Assert
+              (Request.REQ_1.Value = 123,
+               "got wrong request value: " & Request.REQ_1.Value'Image);
+            Confirm := (Kind => CFM_1, CFM_1 => (Value => 321));
+         end Build;
+
+         procedure Build_Confirm is new SAP.Build_Confirm (Build);
+      begin
+         Build_Confirm (S_Handle);
+      end;
+
+      --  The transaction should be completed and released back to the free
+      --  pool when the confirm is sent.
+
+      SAP.Send_Confirm (S_Handle);
+
+      --  Check that the transaction can be reallocated.
+      --
+      --  At this point, all transactions should be in the free pool, so we
+      --  can reallocate all of them.
+
+      declare
+         Handles : array (SAP.Transaction_ID) of SAP.Request_Handle;
+      begin
+         for I in SAP.Transaction_ID loop
+            SAP.Try_Allocate_Request (Handles (I));
+
+            Assert
+              (not SAP.Is_Null (Handles (I)),
+               "failed to reallocate handle on allocation #" & I'Image);
+         end loop;
+
+         Assert
+           ((for some I in Handles'Range => SAP.Get_TID (Handles (I)) = TID),
+            "discarded transaction was not reallocated");
+
+         --  Release resources
+
+         for I in Handles'Range loop
+            SAP.Abort_Request (Handles (I));
+         end loop;
+      end;
+   end Test_Discard_Before_Confirm_Sent;
+
+   --------------------------------------
+   -- Test_Discard_After_Confirm_Sent --
+   --------------------------------------
+
+   --  This test checks that when discarding a Confirm_Promise after the
+   --  service has sent the confirmation causes the transaction to be properly
+   --  released back to the free pool.
+
+   package Test_Discard_After_Confirm_Sent_SAP is new
+     LibSAP.Light_Provider_Service_Access_Point
+       (Request_Type     => Request_Type,
+        Confirm_Type     => Confirm_Type,
+        Queue_Capacity   => 3,
+        Requires_Confirm => Requires_Confirm,
+        Valid_Confirm    => Valid_Confirm);
+
+   procedure Test_Discard_After_Confirm_Sent (T : in out Test) is
+      package SAP renames Test_Discard_After_Confirm_Sent_SAP;
+
+      use type SAP.Transaction_ID;
+
+      Req_Handle  : SAP.Request_Handle;
+      Cfm_Promise : SAP.Confirm_Promise;
+      S_Handle    : SAP.Service_Handle;
+      TID         : SAP.Transaction_ID;
+
+   begin
+
+      --  Send a request to get a confirm promise
+
+      SAP.Try_Allocate_Request (Req_Handle);
+      Assert (not SAP.Is_Null (Req_Handle), "request allocation failed");
+
+      declare
+         procedure Build (Request : out Request_Type) is
+         begin
+            Request := (Kind => REQ_1, REQ_1 => (Value => 123));
+         end Build;
+
+         procedure Build_Request is new SAP.Build_Request (Build);
+      begin
+         Build_Request (Req_Handle);
+      end;
+
+      SAP.Send_Request (Req_Handle, Cfm_Promise);
+      Assert (not SAP.Is_Null (Cfm_Promise), "did not get confirm promise");
+
+      --  Process the request and send the confirm
+
+      SAP.Try_Get_Next_Request (S_Handle);
+      Assert (not SAP.Is_Null (S_Handle), "failed to get next request");
+
+      declare
+         procedure Build (Request : Request_Type; Confirm : out Confirm_Type)
+         is
+         begin
+            Assert
+              (Request.Kind = REQ_1,
+               "got wrong request kind: " & Request.Kind'Image);
+            Assert
+              (Request.REQ_1.Value = 123,
+               "got wrong request value: " & Request.REQ_1.Value'Image);
+            Confirm := (Kind => CFM_1, CFM_1 => (Value => 321));
+         end Build;
+
+         procedure Build_Confirm is new SAP.Build_Confirm (Build);
+      begin
+         Build_Confirm (S_Handle);
+      end;
+
+      SAP.Send_Confirm (S_Handle);
+
+      --  Discard the confirm promise. The transaction should be released back
+      --  to the free pool at this point.
+
+      TID := SAP.Get_TID (Cfm_Promise);
+      SAP.Discard (Cfm_Promise);
+
+      --  Check that the transaction can be reallocated.
+      --
+      --  At this point, all transactions should be in the free pool, so we
+      --  can reallocate all of them.
+
+      declare
+         Handles : array (SAP.Transaction_ID) of SAP.Request_Handle;
+      begin
+         for I in SAP.Transaction_ID loop
+            SAP.Try_Allocate_Request (Handles (I));
+
+            Assert
+              (not SAP.Is_Null (Handles (I)),
+               "failed to reallocate handle on allocation #" & I'Image);
+         end loop;
+
+         Assert
+           ((for some I in Handles'Range => SAP.Get_TID (Handles (I)) = TID),
+            "discarded transaction was not reallocated");
+
+         --  Release resources
+
+         for I in Handles'Range loop
+            SAP.Abort_Request (Handles (I));
+         end loop;
+      end;
+   end Test_Discard_After_Confirm_Sent;
+
    -----------
    -- Suite --
    -----------
@@ -153,6 +367,16 @@ package body Light_Provider_SAP_Tests is
            ("[Light_Provider_Service_Access_Point] "
             & "Test_One_Normal_Transaction",
             Test_One_Normal_Transaction'Access));
+      Ret.Add_Test
+        (Test_Caller.Create
+           ("[Light_Provider_Service_Access_Point] "
+            & "Test_Discard_Before_Confirm_Sent",
+            Test_Discard_Before_Confirm_Sent'Access));
+      Ret.Add_Test
+        (Test_Caller.Create
+           ("[Light_Provider_Service_Access_Point] "
+            & "Test_Discard_After_Confirm_Sent",
+            Test_Discard_After_Confirm_Sent'Access));
       return Ret;
    end Suite;
 
