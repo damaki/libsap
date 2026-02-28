@@ -52,7 +52,7 @@ jobs:
           alr build \
             --profiles=unit_tests=validation,libsap=validation \
             -- \
-            -XUNIT_TEST_REPORT_FORMAT=XML
+            -XUNIT_TEST_REPORT_FORMAT=JUnit
           mkdir reports
           bin/unit_tests > reports/unit_tests.xml
           cat reports/unit_tests.xml
