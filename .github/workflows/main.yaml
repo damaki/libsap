@@ -45,6 +45,26 @@ jobs:
           cd examples
           ./build-all.sh --profile=validation
 
+      - name: Run unit tests
+        shell: bash
+        run: |
+          cd tests/unit_tests
+          alr build \
+            --profiles=unit_tests=validation,libsap=validation \
+            -- \
+            -XUNIT_TEST_REPORT_FORMAT=XML
+          mkdir reports
+          bin/unit_tests > reports/unit_tests.xml
+          cat reports/unit_tests.xml
+
+      - name: Test Report
+        uses: dorny/test-reporter@v2
+        if: ${{ !cancelled() }}       # run this step even if previous step failed
+        with:
+          name: Unit Tests
+          path: tests/unit_tests/reports/*.xml
+          reporter: java-junit
+
   prove:
     needs: setup
     runs-on: ubuntu-latest
