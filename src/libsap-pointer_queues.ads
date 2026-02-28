@@ -13,7 +13,10 @@ private generic
    Queue_Capacity : Positive;
 package LibSAP.Pointer_Queues with Pure, SPARK_Mode, Always_Terminates is
 
-   type Queue_Type is private;
+   type Queue_Type is private
+   with
+     Default_Initial_Condition =>
+       Is_Valid (Queue_Type) and then Length (Queue_Type) = 0;
 
    subtype Count_Type is Natural range 0 .. Queue_Capacity;
 
@@ -83,20 +86,19 @@ private
        else 1 + ((I - 2) - (Queue_Capacity - First)));
    --  Maps a logical index to its physical index in the Queue.Items array
 
+   --  Add 1 or 0 to work around a compiler warning when
+   --  Queue_Capacity = 1 where the compiler thinks that I + 1 would
+   --  overflow, even though the above 'if' condition guards against that
+   --  case.
+   --
+   --  This should fold down to a simple constant at compile time
+   --  so should be equivalent to I + 1.
+
+   Increment_Amount : constant Index_Type'Base :=
+     (if Index_Type'First /= Index_Type'Last then 1 else 0);
+
    function Increment_Wrapping (I : Index_Type) return Index_Type
-   is (if I = Index_Type'Last
-       then 1
-       else
-
-         --  Add 1 or 0 to work around a compiler warning when
-         --  Queue_Capacity = 1 where the compiler thinks that I + 1 would
-         --  overflow, even though the above 'if' condition guards against that
-         --  case.
-         --
-         --  This should fold down to a simple constant at compile time
-         --  so should be equivalent to I + 1.
-
-          (I + (if Index_Type'First /= Index_Type'Last then 1 else 0)));
+   is (if I = Index_Type'Last then 1 else I + Increment_Amount);
 
    function Is_Null_At
      (Items : Element_Access_Array;
