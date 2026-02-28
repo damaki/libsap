@@ -85,7 +85,10 @@ is
    procedure Build_Indication (Handle : in out Indication_Handle)
    with
      Pre  => not Is_Null (Handle),
-     Post => not Is_Null (Handle) and then Indication_Ready (Handle);
+     Post =>
+       not Is_Null (Handle)
+       and Indication_Ready (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Write an indication.
    --
    --  The indication object is passed to the Build generic formal procedure,
@@ -100,8 +103,9 @@ is
      Pre  => not Is_Null (Handle),
      Post =>
        not Is_Null (Handle)
-       and then Indication_Ready (Handle)
-       and then not Requires_Response (Handle);
+       and Indication_Ready (Handle)
+       and not Requires_Response (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Write an indication that does not require a confirm.
    --
    --  The indication object is passed to the Build generic formal procedure,
@@ -118,8 +122,9 @@ is
      Pre  => not Is_Null (Handle),
      Post =>
        not Is_Null (Handle)
-       and then Indication_Ready (Handle)
-       and then Requires_Response (Handle);
+       and Indication_Ready (Handle)
+       and Requires_Response (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Write an indication that requires a confirm.
    --
    --  The indication object is passed to the Build generic formal procedure,
@@ -138,8 +143,9 @@ is
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
-       and then Indication_Ready (Handle)
-       and then Postcondition;
+       and Indication_Ready (Handle)
+       and Postcondition
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Indication, but provides additional proof context to be
    --  passed to and from the call to Build via a precondition and
    --  postcondition.
@@ -154,9 +160,10 @@ is
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
-       and then Indication_Ready (Handle)
-       and then not Requires_Response (Handle)
-       and then Postcondition;
+       and Indication_Ready (Handle)
+       and not Requires_Response (Handle)
+       and Postcondition
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Indication_No_Confirm, but provides additional proof
    --  context to be passed to and from the call to Build via a precondition
    --  and postcondition.
@@ -171,9 +178,10 @@ is
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
-       and then Indication_Ready (Handle)
-       and then Requires_Response (Handle)
-       and then Postcondition;
+       and Indication_Ready (Handle)
+       and Requires_Response (Handle)
+       and Postcondition
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Indication_With_Confirm, but provides additional proof
    --  context to be passed to and from the call to Build via a precondition
    --  and postcondition.
@@ -315,7 +323,8 @@ is
        and then Indication_Ready (Handle),
      Post           => Is_Null (Handle),
      Contract_Cases =>
-       (Requires_Response (Handle) => not Is_Null (Promise),
+       (Requires_Response (Handle) =>
+          not Is_Null (Promise) and (Get_TID (Promise) = Get_TID (Handle)'Old),
         others                     => Is_Null (Promise));
    --  Send a prepared indication to the Service User.
    --
@@ -355,7 +364,13 @@ is
      Inline,
      Global => (In_Out => Transaction_Queue),
      Pre    => Is_Null (Handle) and then not Is_Null (Promise),
-     Post   => Is_Null (Handle) = not Is_Null (Promise);
+     Post   =>
+       (Is_Null (Handle) = not Is_Null (Promise))
+       and
+         (Get_TID (Promise)'Old
+          = (if not Is_Null (Handle)
+             then Get_TID (Handle)
+             else Get_TID (Promise)));
    --  Try to get the pending response primitive from a Promise.
    --
    --  If the pending response primitive has been sent by the Service User,
@@ -384,7 +399,10 @@ is
    with
      Global => null,
      Pre    => not Is_Null (Res_Handle) and then Is_Null (Ind_Handle),
-     Post   => not Is_Null (Ind_Handle) and then Is_Null (Res_Handle);
+     Post   =>
+       not Is_Null (Ind_Handle)
+       and Is_Null (Res_Handle)
+       and (Get_TID (Ind_Handle) = Get_TID (Res_Handle)'Old);
    --  Finish the transaction held by Res_Handle and begin a new transaction
    --  in Ind_Handle.
    --
@@ -458,7 +476,8 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
-       and (if Requires_Response (Handle) then Has_Valid_Response (Handle));
+       and (if Requires_Response (Handle) then Has_Valid_Response (Handle))
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Process an indication, and generate a response if one is required.
    --
    --  This procedure passes the indication to either
@@ -475,7 +494,8 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
-       and Has_Valid_Response (Handle);
+       and Has_Valid_Response (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Builds a response primitive.
    --
    --  The response primitive is passed to the Build procedure, which writes

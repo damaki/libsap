@@ -40,7 +40,9 @@ is
           and then STQ.Request_Ready (Handle),
         Post           => STQ.Is_Null (Handle),
         Contract_Cases =>
-          (STQ.Requires_Confirm (Handle) => not STQ.Is_Null (Promise),
+          (STQ.Requires_Confirm (Handle) =>
+             not STQ.Is_Null (Promise)
+             and (STQ.Get_TID (Promise) = STQ.Get_TID (Handle)'Old),
            others                        => STQ.Is_Null (Promise));
 
       function Has_Pending_Indication return Boolean;
