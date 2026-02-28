@@ -1,7 +1,7 @@
 with "config/unit_tests_config.gpr";
 project Unit_Tests is
 
-   type Report_Format_Kind is ("Text", "XML");
+   type Report_Format_Kind is ("Text", "XML", "JUnit");
    Report_Format : Report_Format_Kind := external ("UNIT_TEST_REPORT_FORMAT", "Text");
 
    for Source_Dirs use ("src/", "config/", "src/" & Report_Format);
