@@ -392,11 +392,12 @@ private
    type Confirm_Promise_Token_Access is access all Confirm_Promise_Token;
 
    function Pending_Request_Predicate
-     (TD : not null Transaction_Data_Access) return Boolean;
+     (TD : not null Transaction_Data_Access) return Boolean
+   with Ghost;
 
    subtype Pending_Request_Transaction_Data_Access is Transaction_Data_Access
    with
-     Predicate =>
+     Ghost_Predicate =>
        (if Pending_Request_Transaction_Data_Access /= null
         then
           Pending_Request_Predicate (Pending_Request_Transaction_Data_Access));
@@ -428,10 +429,11 @@ private
    --------------------
 
    function Request_Handle_Predicate
-     (TD : not null Transaction_Data_Access) return Boolean;
+     (TD : not null Transaction_Data_Access) return Boolean
+   with Ghost;
 
    type Request_Handle is limited new Transaction_Handle
-   with Predicate => (if TD /= null then Request_Handle_Predicate (TD));
+   with Ghost_Predicate => (if TD /= null then Request_Handle_Predicate (TD));
 
    function Is_Null (Handle : Request_Handle) return Boolean
    is (Handle.TD = null);
@@ -441,10 +443,11 @@ private
    --------------------
 
    function Service_Handle_Predicate
-     (TD : not null Transaction_Data_Access) return Boolean;
+     (TD : not null Transaction_Data_Access) return Boolean
+   with Ghost;
 
    type Service_Handle is limited new Transaction_Handle
-   with Predicate => (if TD /= null then Service_Handle_Predicate (TD));
+   with Ghost_Predicate => (if TD /= null then Service_Handle_Predicate (TD));
 
    function Is_Null (Handle : Service_Handle) return Boolean
    is (Handle.TD = null);
@@ -454,10 +457,11 @@ private
    --------------------
 
    function Confirm_Handle_Predicate
-     (TD : not null Transaction_Data_Access) return Boolean;
+     (TD : not null Transaction_Data_Access) return Boolean
+   with Ghost;
 
    type Confirm_Handle is limited new Transaction_Handle
-   with Predicate => (if TD /= null then Confirm_Handle_Predicate (TD));
+   with Ghost_Predicate => (if TD /= null then Confirm_Handle_Predicate (TD));
 
    function Is_Null (Handle : Confirm_Handle) return Boolean
    is (Handle.TD = null);
