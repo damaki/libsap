@@ -92,7 +92,10 @@ is
    procedure Build_Request (Handle : in out Request_Handle)
    with
      Pre  => not Is_Null (Handle),
-     Post => not Is_Null (Handle) and then Request_Ready (Handle);
+     Post =>
+       not Is_Null (Handle)
+       and Request_Ready (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
 
    generic
       with procedure Build (Request : out Request_Type);
@@ -101,8 +104,9 @@ is
      Pre  => not Is_Null (Handle),
      Post =>
        not Is_Null (Handle)
-       and then Request_Ready (Handle)
-       and then not Requires_Confirm (Handle);
+       and Request_Ready (Handle)
+       and not Requires_Confirm (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
 
    generic
       with procedure Build (Request : out Request_Type);
@@ -111,8 +115,9 @@ is
      Pre  => not Is_Null (Handle),
      Post =>
        not Is_Null (Handle)
-       and then Request_Ready (Handle)
-       and then Requires_Confirm (Handle);
+       and Request_Ready (Handle)
+       and Requires_Confirm (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
 
    generic
       with procedure Build (Request : out Request_Type);
@@ -123,8 +128,9 @@ is
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
-       and then Request_Ready (Handle)
-       and then Postcondition;
+       and Request_Ready (Handle)
+       and Postcondition
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
 
    generic
       with procedure Build (Request : out Request_Type);
@@ -136,9 +142,10 @@ is
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
-       and then Request_Ready (Handle)
-       and then not Requires_Confirm (Handle)
-       and then Postcondition;
+       and Request_Ready (Handle)
+       and not Requires_Confirm (Handle)
+       and Postcondition
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
 
    generic
       with procedure Build (Request : out Request_Type);
@@ -150,9 +157,10 @@ is
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
-       and then Request_Ready (Handle)
-       and then Requires_Confirm (Handle)
-       and then Postcondition;
+       and Request_Ready (Handle)
+       and Requires_Confirm (Handle)
+       and Postcondition
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
 
    ---------------------
    -- Confirm Promise --
@@ -280,7 +288,8 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
-       and Has_Valid_Confirm (Handle);
+       and Has_Valid_Confirm (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
 
    ----------------------------
    -- Transaction_Queue_Type --
@@ -324,7 +333,8 @@ is
        and then Request_Ready (Handle),
      Post           => Is_Null (Handle) and Has_Pending_Request (Queue),
      Contract_Cases =>
-       (Requires_Confirm (Handle) => not Is_Null (Promise),
+       (Requires_Confirm (Handle) =>
+          not Is_Null (Promise) and (Get_TID (Promise) = Get_TID (Handle)'Old),
         others                    => Is_Null (Promise));
 
    procedure Discard (Promise : in out Confirm_Promise)
@@ -336,7 +346,13 @@ is
      Inline,
      Global => (In_Out => Transaction_Pool),
      Pre    => Is_Null (Handle) and then not Is_Null (Promise),
-     Post   => Is_Null (Handle) = not Is_Null (Promise);
+     Post   =>
+       (Is_Null (Handle) = not Is_Null (Promise))
+       and
+         (Get_TID (Promise)'Old
+          = (if not Is_Null (Handle)
+             then Get_TID (Handle)
+             else Get_TID (Promise)));
 
    procedure Release (Handle : in out Confirm_Handle)
    with
@@ -349,7 +365,10 @@ is
    with
      Global => null,
      Pre    => not Is_Null (Cfm_Handle) and then Is_Null (Req_Handle),
-     Post   => not Is_Null (Req_Handle) and then Is_Null (Cfm_Handle);
+     Post   =>
+       not Is_Null (Req_Handle)
+       and Is_Null (Cfm_Handle)
+       and (Get_TID (Req_Handle) = Get_TID (Cfm_Handle)'Old);
 
    ------------------------
    -- Service Operations --

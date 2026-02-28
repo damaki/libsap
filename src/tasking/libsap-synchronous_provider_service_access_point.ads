@@ -83,7 +83,10 @@ is
    procedure Build_Request (Handle : in out Request_Handle)
    with
      Pre  => not Is_Null (Handle),
-     Post => not Is_Null (Handle) and then Request_Ready (Handle);
+     Post =>
+       not Is_Null (Handle)
+       and Request_Ready (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Write a request.
    --
    --  The request object is passed to the Build generic formal procedure,
@@ -98,8 +101,9 @@ is
      Pre  => not Is_Null (Handle),
      Post =>
        not Is_Null (Handle)
-       and then Request_Ready (Handle)
-       and then not Requires_Confirm (Handle);
+       and Request_Ready (Handle)
+       and not Requires_Confirm (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Write a request that does not require a confirm.
    --
    --  The request object is passed to the Build generic formal procedure,
@@ -116,8 +120,9 @@ is
      Pre  => not Is_Null (Handle),
      Post =>
        not Is_Null (Handle)
-       and then Request_Ready (Handle)
-       and then Requires_Confirm (Handle);
+       and Request_Ready (Handle)
+       and Requires_Confirm (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Write a request that requires a confirm.
    --
    --  The request object is passed to the Build generic formal procedure,
@@ -136,8 +141,9 @@ is
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
-       and then Request_Ready (Handle)
-       and then Postcondition;
+       and Request_Ready (Handle)
+       and Postcondition
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Request, but provides additional proof context to be
    --  passed to and from the call to Build via a precondition and
    --  postcondition.
@@ -152,9 +158,10 @@ is
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
-       and then Request_Ready (Handle)
-       and then not Requires_Confirm (Handle)
-       and then Postcondition;
+       and Request_Ready (Handle)
+       and not Requires_Confirm (Handle)
+       and Postcondition
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Request_No_Confirm, but provides additional proof context
    --  to be passed to and from the call to Build via a precondition and
    --  postcondition.
@@ -169,9 +176,10 @@ is
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
-       and then Request_Ready (Handle)
-       and then Requires_Confirm (Handle)
-       and then Postcondition;
+       and Request_Ready (Handle)
+       and Requires_Confirm (Handle)
+       and Postcondition
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Request_With_Confirm, but provides additional proof
    --  context to be passed to and from the call to Build via a precondition
    --  and postcondition.
@@ -313,7 +321,8 @@ is
        and then Request_Ready (Handle),
      Post           => Is_Null (Handle),
      Contract_Cases =>
-       (Requires_Confirm (Handle) => not Is_Null (Promise),
+       (Requires_Confirm (Handle) =>
+          not Is_Null (Promise) and (Get_TID (Promise) = Get_TID (Handle)'Old),
         others                    => Is_Null (Promise));
    --  Send a prepared request to the Service Provider.
    --
@@ -353,7 +362,13 @@ is
      Inline,
      Global => (In_Out => Transaction_Queue),
      Pre    => Is_Null (Handle) and then not Is_Null (Promise),
-     Post   => Is_Null (Handle) = not Is_Null (Promise);
+     Post   =>
+       (Is_Null (Handle) = not Is_Null (Promise))
+       and
+         (Get_TID (Promise)'Old
+          = (if not Is_Null (Handle)
+             then Get_TID (Handle)
+             else Get_TID (Promise)));
    --  Try to get the pending confirm primitive from a Promise.
    --
    --  If the pending confirm primitive has been sent by the Service Provider,
@@ -381,7 +396,10 @@ is
    with
      Global => null,
      Pre    => not Is_Null (Cfm_Handle) and then Is_Null (Req_Handle),
-     Post   => not Is_Null (Req_Handle) and then Is_Null (Cfm_Handle);
+     Post   =>
+       not Is_Null (Req_Handle)
+       and Is_Null (Cfm_Handle)
+       and (Get_TID (Req_Handle) = Get_TID (Cfm_Handle)'Old);
    --  Finish the transaction held by Cfm_Handle and begin a new transaction
    --  in Req_Handle.
    --
@@ -452,7 +470,8 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
-       and (if Requires_Confirm (Handle) then Has_Valid_Confirm (Handle));
+       and (if Requires_Confirm (Handle) then Has_Valid_Confirm (Handle))
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Process a request, and generate a confirm if one is required.
    --
    --  This procedure passes the request to either Process_Request_No_Confirm
@@ -468,7 +487,8 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
-       and Has_Valid_Confirm (Handle);
+       and Has_Valid_Confirm (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Builds a confirm primitive.
    --
    --  The confirm primitive is passed to the Build procedure, which writes
