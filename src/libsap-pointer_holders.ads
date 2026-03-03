@@ -21,6 +21,7 @@ package LibSAP.Pointer_Holders with
     Preelaborate,
     SPARK_Mode,
     Abstract_State => (Pointer_Pool with Synchronous),
+    Initializes    => Pointer_Pool,
     Always_Terminates
 is
 
