@@ -29,7 +29,7 @@ for d in */; do
         cd "$d" || exit
         echo "===================="
         echo "Building example: $(basename $d)"
-        alr build --profiles=*=$PROFILE
+        alr build --profiles=libsap=$PROFILE,$(basename $d)=$PROFILE
     ) || EXIT_CODE=1
 done
 
