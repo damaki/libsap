@@ -18,7 +18,6 @@ private generic
    type Element_Type (ID : Element_ID) is limited private;
    type Element_Access is access all Element_Type;
 package LibSAP.Pointer_Holders with
-    Preelaborate,
     SPARK_Mode,
     Abstract_State => (Pointer_Pool with Synchronous),
     Initializes    => Pointer_Pool,

@@ -9,143 +9,22 @@
 --  effectively volatile (atomic types in this case. See SPARK RM 3.10 (16)).
 --
 --  This package therefore wraps such operations while still preserving
---  SPARK ownership semantics in the package spec.
+--  SPARK ownership semantics in the package spec. It uses the "atomic" crate
+--  for the atomic operations.
 
-with System;
+with Atomic;
+with Atomic.Basic_Operations;
 
 package body LibSAP.Pointer_Holders
   with SPARK_Mode => Off
 is
 
-   --  Note that System.Atomic_Operations is not available on most embedded
-   --  targets, so we instead choose to bind GCC's __atomic_exchange_N
-   --  intrinsic directly.
-   --
-   --  This might still be unavailable on some targets (e.g. Armv6-M), but
-   --  it's better than nothing until the atomic crate has atomic pointer
-   --  support.
+   package Atomic_Pointers is new Atomic.Basic_Operations (Element_Access);
 
-   type Mem_Order is (Relaxed, Consume, Acquire, Release, Acq_Rel, Seq_Cst);
+   type Element_Access_Array is
+     array (Element_ID) of aliased Atomic_Pointers.Instance;
 
-   for Mem_Order use
-     (Relaxed => 0,
-      Consume => 1,
-      Acquire => 2,
-      Release => 3,
-      Acq_Rel => 4,
-      Seq_Cst => 5);
-
-   ---------------------
-   -- Atomic_Exchange --
-   ---------------------
-
-   function Atomic_Exchange
-     (Ptr : System.Address; Val : Element_Access; Order : Mem_Order := Seq_Cst)
-      return Element_Access
-   is
-
-      --  Handle different pointer sizes
-
-      --  Note that since we have different bindings to support any possible
-      --  pointer size, GNAT will warn about the binding type mismatch on
-      --  parameter 'Val' and the result. This is to be expected on some of
-      --  the bindings, since the pointer size will not match all bindings.
-      --
-      --  However, only the correct binding is actually called.
-
-      pragma Warnings (Off);
-
-      function Intrinsic8
-        (Ptr : System.Address; Val : Element_Access; Model : Integer)
-         return Element_Access;
-      pragma Import (Intrinsic, Intrinsic8, "__atomic_exchange_1");
-
-      function Intrinsic16
-        (Ptr : System.Address; Val : Element_Access; Model : Integer)
-         return Element_Access;
-      pragma Import (Intrinsic, Intrinsic16, "__atomic_exchange_2");
-
-      function Intrinsic32
-        (Ptr : System.Address; Val : Element_Access; Model : Integer)
-         return Element_Access;
-      pragma Import (Intrinsic, Intrinsic32, "__atomic_exchange_4");
-
-      function Intrinsic64
-        (Ptr : System.Address; Val : Element_Access; Model : Integer)
-         return Element_Access;
-      pragma Import (Intrinsic, Intrinsic64, "__atomic_exchange_8");
-
-      pragma Warnings (On);
-
-   begin
-      case Element_Access'Object_Size is
-         when 8      =>
-            return Intrinsic8 (Ptr, Val, Order'Enum_Rep);
-
-         when 16     =>
-            return Intrinsic16 (Ptr, Val, Order'Enum_Rep);
-
-         when 32     =>
-            return Intrinsic32 (Ptr, Val, Order'Enum_Rep);
-
-         when 64     =>
-            return Intrinsic64 (Ptr, Val, Order'Enum_Rep);
-
-         when others =>
-            raise Program_Error;
-      end case;
-   end Atomic_Exchange;
-
-   -----------------
-   -- Atomic_Load --
-   -----------------
-
-   function Atomic_Load
-     (Ptr : System.Address; Order : Mem_Order := Seq_Cst) return Element_Access
-   is
-      pragma Warnings (Off);
-
-      function Intrinsic8
-        (Ptr : System.Address; Model : Integer) return Element_Access;
-      pragma Import (Intrinsic, Intrinsic8, "__atomic_load_1");
-
-      function Intrinsic16
-        (Ptr : System.Address; Model : Integer) return Element_Access;
-      pragma Import (Intrinsic, Intrinsic16, "__atomic_load_2");
-
-      function Intrinsic32
-        (Ptr : System.Address; Model : Integer) return Element_Access;
-      pragma Import (Intrinsic, Intrinsic32, "__atomic_load_4");
-
-      function Intrinsic64
-        (Ptr : System.Address; Model : Integer) return Element_Access;
-      pragma Import (Intrinsic, Intrinsic64, "__atomic_load_8");
-
-      pragma Warnings (On);
-
-   begin
-      case Element_Access'Object_Size is
-         when 8      =>
-            return Intrinsic8 (Ptr, Order'Enum_Rep);
-
-         when 16     =>
-            return Intrinsic16 (Ptr, Order'Enum_Rep);
-
-         when 32     =>
-            return Intrinsic32 (Ptr, Order'Enum_Rep);
-
-         when 64     =>
-            return Intrinsic64 (Ptr, Order'Enum_Rep);
-
-         when others =>
-            raise Program_Error;
-      end case;
-   end Atomic_Load;
-
-   type Element_Access_Array is array (Element_ID) of aliased Element_Access
-   with Atomic_Components;
-
-   Pool : Element_Access_Array := [others => null];
+   Pool : Element_Access_Array := [others => Atomic_Pointers.Init (null)];
 
    -------------------
    -- Check_Is_Null --
@@ -153,7 +32,7 @@ is
 
    procedure Check_Is_Null (ID : Element_ID; Is_Null : out Boolean) is
       Element : constant Element_Access :=
-        Atomic_Load (Pool (ID)'Address, Relaxed);
+        Atomic_Pointers.Load (Pool (ID), Atomic.Relaxed);
    begin
       Is_Null := Element = null;
    end Check_Is_Null;
@@ -165,7 +44,8 @@ is
    procedure Exchange (Element : in out Element_Access) is
    begin
       Element :=
-        Atomic_Exchange (Pool (Element.all.ID)'Address, Element, Seq_Cst);
+        Atomic_Pointers.Exchange
+          (Pool (Element.all.ID), Element, Atomic.Acq_Rel);
    end Exchange;
 
    --------------
@@ -174,7 +54,7 @@ is
 
    procedure Retrieve (ID : Element_ID; Element : out Element_Access) is
    begin
-      Element := Atomic_Exchange (Pool (ID)'Address, null, Seq_Cst);
+      Element := Atomic_Pointers.Exchange (Pool (ID), null, Atomic.Acq_Rel);
    end Retrieve;
 
 end LibSAP.Pointer_Holders;

@@ -11,6 +11,7 @@ tags = ["protocol", "protocols", "nostd", "spark"]
 
 [[depends-on]]
 gnat = ">=14"
+atomic = "^1.1.0"
 
 [build-switches]
 "*".Ada_Version = "Ada2022"
