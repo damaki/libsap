@@ -1,6 +1,6 @@
 name = "libsap"
 description = "Asynchronous message-passing for protocol stacks"
-version = "0.1.0-dev"
+version = "0.1.0"
 
 authors = ["Daniel King"]
 maintainers = ["Daniel King <damaki.gh@gmail.com>"]
