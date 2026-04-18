@@ -1,6 +1,12 @@
 name = "libsap"
-description = "Asynchronous message-passing for protocol stacks"
+description = "Asynchronous message passing for protocol stacks"
 version = "0.1.0-dev"
+
+long-description = """
+Provides utilities to create _Service Access Points_ (SAP) for asynchronous,
+zero-copy message passing between tasks based on _Service Primitive_ messages
+(request, confirm, indication, and response primitives).
+"""
 
 authors = ["Daniel King"]
 maintainers = ["Daniel King <damaki.gh@gmail.com>"]
