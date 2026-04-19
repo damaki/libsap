@@ -500,7 +500,8 @@ sequenceDiagram
     SAP-->>-Provider:
 ```
 
->[!NOTE] The Service Provider is not required to respond to the request
+>[!NOTE]
+> The Service Provider is not required to respond to the request
 > immediately. It can save the handle elsewhere and process other requests
 > in the meantime, before responding to the first request.
 
