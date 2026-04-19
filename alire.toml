@@ -12,7 +12,7 @@ authors = ["Daniel King"]
 maintainers = ["Daniel King <damaki.gh@gmail.com>"]
 maintainers-logins = ["damaki"]
 licenses = "Apache-2.0 WITH LLVM-exception"
-website = ""
+website = "https://github.com/damaki/libsap"
 tags = ["protocol", "protocols", "nostd", "spark"]
 
 [[depends-on]]
