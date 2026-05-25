@@ -38,7 +38,9 @@ is
 
    type Transaction_ID is new Positive range 1 .. Queue_Capacity;
 
-   function Always_True return Boolean is (True);
+   function Always_True
+     (Request : Request_Type with Unreferenced) return Boolean
+   is (True);
 
    ---------------------
    -- Request Handles --
@@ -149,15 +151,17 @@ is
 
    generic
       with procedure Build (Request : out Request_Type);
-      with function Precondition return Boolean;
-      with function Postcondition return Boolean;
+      with function Precondition return Boolean is Always_True;
+      with
+        function Postcondition (Request : Request_Type) return Boolean
+        is Always_True;
    procedure Build_Contextual_Request (Handle : in out Request_Handle)
    with
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
        and Request_Ready (Handle)
-       and Postcondition
+       and Postcondition (Request_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Request, but provides additional proof context to be
    --  passed to and from the call to Build via a precondition and
@@ -165,8 +169,10 @@ is
 
    generic
       with procedure Build (Request : out Request_Type);
-      with function Precondition return Boolean;
-      with function Postcondition return Boolean;
+      with function Precondition return Boolean is Always_True;
+      with
+        function Postcondition (Request : Request_Type) return Boolean
+        is Always_True;
    procedure Build_Contextual_Request_No_Confirm
      (Handle : in out Request_Handle)
    with
@@ -175,7 +181,7 @@ is
        not Is_Null (Handle)
        and Request_Ready (Handle)
        and not Requires_Confirm (Handle)
-       and Postcondition
+       and Postcondition (Request_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Request_No_Confirm, but provides additional proof context
    --  to be passed to and from the call to Build via a precondition and
@@ -183,8 +189,10 @@ is
 
    generic
       with procedure Build (Request : out Request_Type);
-      with function Precondition return Boolean;
-      with function Postcondition return Boolean;
+      with function Precondition return Boolean is Always_True;
+      with
+        function Postcondition (Request : Request_Type) return Boolean
+        is Always_True;
    procedure Build_Contextual_Request_With_Confirm
      (Handle : in out Request_Handle)
    with
@@ -193,7 +201,7 @@ is
        not Is_Null (Handle)
        and Request_Ready (Handle)
        and Requires_Confirm (Handle)
-       and Postcondition
+       and Postcondition (Request_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Request_With_Confirm, but provides additional proof
    --  context to be passed to and from the call to Build via a precondition

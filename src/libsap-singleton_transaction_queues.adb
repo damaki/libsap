@@ -306,7 +306,7 @@ is
 
       Build (Handle.TD.all.Request);
 
-      pragma Assert (Postcondition);
+      pragma Assert (Postcondition (Handle.TD.all.Request));
    end Build_Contextual_Request;
 
    -----------------------------------------
@@ -322,7 +322,7 @@ is
 
       Build (Handle.TD.all.Request);
 
-      pragma Assert (Postcondition);
+      pragma Assert (Postcondition (Handle.TD.all.Request));
       pragma Assert (not Requires_Confirm (Handle.TD.all.Request));
 
    end Build_Contextual_Request_No_Confirm;
@@ -340,7 +340,7 @@ is
 
       Build (Handle.TD.all.Request);
 
-      pragma Assert (Postcondition);
+      pragma Assert (Postcondition (Handle.TD.all.Request));
       pragma Assert (Requires_Confirm (Handle.TD.all.Request));
 
    end Build_Contextual_Request_With_Confirm;

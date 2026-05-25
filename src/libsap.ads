@@ -8,4 +8,6 @@ package LibSAP
   with Pure, SPARK_Mode
 is
 
+   function Always_True return Boolean is (True);
+
 end LibSAP;
