@@ -44,12 +44,18 @@ begin
    declare
       Value_To_Echo : constant Natural := 123;
 
+      function Is_ECHO_Req
+        (Request : Service_Provider.Request_Type) return Boolean
+      is (Request.Kind = ECHO_Req);
+
       procedure Build_ECHO_Request
         (Request : out Service_Provider.Request_Type)
       with
         Global => null,
         Pre    => not Request'Constrained,
-        Post   => Service_Provider.Requires_Confirm (Request)
+        Post   =>
+          Service_Provider.Requires_Confirm (Request)
+          and then Is_ECHO_Req (Request)
       is
       begin
          Request :=
@@ -57,7 +63,9 @@ begin
       end Build_ECHO_Request;
 
       procedure Build_Request is new
-        Service_Provider.SAP.Build_Request_With_Confirm (Build_ECHO_Request);
+        Service_Provider.SAP.Build_Contextual_Request_With_Confirm
+          (Build         => Build_ECHO_Request,
+           Postcondition => Is_ECHO_Req);
 
       Req_Handle : Service_Provider.SAP.Request_Handle;
 
@@ -86,6 +94,13 @@ begin
       pragma Loop_Invariant (not Service_Provider.SAP.Is_Null (Cfm_Promise));
       pragma Loop_Invariant (Service_Provider.SAP.Is_Null (Cfm_Handle));
 
+      --  Prove that the request kind that we're dealing with (ECHO_Req)
+      --  stays the same on each loop iteration.
+
+      pragma
+        Loop_Invariant
+          (Service_Provider.SAP.Request_Kind (Cfm_Promise) = ECHO_Req);
+
       Service_Provider.SAP.Try_Get_Confirm (Cfm_Handle, Cfm_Promise);
 
       exit when not Service_Provider.SAP.Is_Null (Cfm_Handle);
@@ -101,14 +116,10 @@ begin
    --  on the request (in this case, that ECHO.cfm is sent in response to an
    --  ECHO.req), and this is proved in SPARK.
    --
-   --  LibSAP also ensures that the request in the Confirm_Handle is the same
-   --  as the original request, but this is not currently provable in SPARK
-   --  so we use an assumption.
+   --  LibSAP also ensures that the request kind in the Confirm_Handle is the
+   --  same as the original request.
 
-   pragma
-     Assume
-       (Service_Provider.SAP.Request_Reference (Cfm_Handle).all.Kind
-        = ECHO_Req);
+   pragma Assert (Service_Provider.SAP.Request_Kind (Cfm_Handle) = ECHO_Req);
 
    declare
       Confirm :

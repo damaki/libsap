@@ -14,9 +14,6 @@ is
 
    procedure Log_Message (Message : String) is
 
-      function Always_True return Boolean
-      is (True);
-
       function Message_Length_In_Range return Boolean
       is (Message'Length <= Message_Length'Last)
       with Global => (Input => Message);
@@ -44,8 +41,7 @@ is
       procedure Build_Request is new
         SAP.Build_Contextual_Request_No_Confirm
           (Build         => Write_Message,
-           Precondition  => Message_Length_In_Range,
-           Postcondition => Always_True);
+           Precondition  => Message_Length_In_Range);
 
       Handle : SAP.Request_Handle;
       Cfm_Promise : SAP.Confirm_Promise;
