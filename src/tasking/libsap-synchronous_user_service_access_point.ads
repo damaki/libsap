@@ -9,11 +9,17 @@ with System;
 private with LibSAP.Singleton_Transaction_Queues;
 
 generic
+   type Indication_Kind_Type is (<>);
+
    type Indication_Type is limited private;
    type Response_Type is limited private;
 
    Queue_Capacity : Positive;
    --  Configures the maximum number of concurrent transactions
+
+   with
+     function Indication_Kind
+       (Indication : Indication_Type) return Indication_Kind_Type;
 
    with
      function Requires_Response (Indication : Indication_Type) return Boolean;
@@ -68,6 +74,15 @@ is
    function Indication_Ready (Handle : Indication_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
 
+   function Indication_Kind
+     (Handle : Indication_Handle) return Indication_Kind_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Indication_Kind'Result
+       = Indication_Kind (Indication_Reference (Handle).all);
+
    procedure Move
      (Target : in out Indication_Handle; Source : in out Indication_Handle)
    with
@@ -78,7 +93,8 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Response (Target) = Requires_Response (Source)'Old)
-       and (Indication_Ready (Target) = Indication_Ready (Source)'Old);
+       and (Indication_Ready (Target) = Indication_Ready (Source)'Old)
+       and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
 
    generic
       with procedure Build (Indication : out Indication_Type);
@@ -205,13 +221,20 @@ is
    function Get_TID (Promise : Response_Promise) return Transaction_ID
    with Inline, Global => null, Pre => not Is_Null (Promise);
 
+   function Indication_Kind
+     (Promise : Response_Promise) return Indication_Kind_Type
+   with Global => null;
+
    procedure Move
      (Target : in out Response_Promise; Source : in out Response_Promise)
    with
      Inline,
      Global => null,
      Pre    => Is_Null (Target),
-     Post   => (Is_Null (Target) = Is_Null (Source)'Old) and Is_Null (Source);
+     Post   =>
+       (Is_Null (Target) = Is_Null (Source)'Old)
+       and Is_Null (Source)
+       and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
 
    ---------------------
    -- Response Handles --
@@ -246,13 +269,25 @@ is
        Valid_Response
          (Indication_Reference (Handle).all, Response_Reference'Result.all);
 
+   function Indication_Kind
+     (Handle : Response_Handle) return Indication_Kind_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Indication_Kind'Result
+       = Indication_Kind (Indication_Reference (Handle).all);
+
    procedure Move
      (Target : in out Response_Handle; Source : in out Response_Handle)
    with
      Inline,
      Global => null,
      Pre    => Is_Null (Target) and not Is_Null (Source),
-     Post   => (Is_Null (Target) = Is_Null (Source)'Old) and Is_Null (Source);
+     Post   =>
+       (Is_Null (Target) = Is_Null (Source)'Old)
+       and Is_Null (Source)
+       and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
 
    ---------------------
    -- Service Handles --
@@ -270,6 +305,15 @@ is
    function Indication_Reference
      (Handle : Service_Handle) return not null access constant Indication_Type
    with Global => null, Pre => not Is_Null (Handle);
+
+   function Indication_Kind
+     (Handle : Service_Handle) return Indication_Kind_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Indication_Kind'Result
+       = Indication_Kind (Indication_Reference (Handle).all);
 
    function Requires_Response (Handle : Service_Handle) return Boolean
    with
@@ -292,7 +336,8 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Response (Target) = Requires_Response (Source)'Old)
-       and (Has_Valid_Response (Target) = Has_Valid_Response (Source)'Old);
+       and (Has_Valid_Response (Target) = Has_Valid_Response (Source)'Old)
+       and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
 
    ---------------------------------
    -- Service Provider Operations --
@@ -324,7 +369,9 @@ is
      Post           => Is_Null (Handle),
      Contract_Cases =>
        (Requires_Response (Handle) =>
-          not Is_Null (Promise) and (Get_TID (Promise) = Get_TID (Handle)'Old),
+          not Is_Null (Promise)
+          and (Get_TID (Promise) = Get_TID (Handle)'Old)
+          and (Indication_Kind (Promise) = Indication_Kind (Handle)'Old),
         others                     => Is_Null (Promise));
    --  Send a prepared indication to the Service User.
    --
@@ -370,7 +417,12 @@ is
          (Get_TID (Promise)'Old
           = (if not Is_Null (Handle)
              then Get_TID (Handle)
-             else Get_TID (Promise)));
+             else Get_TID (Promise)))
+       and
+         (if not Is_Null (Handle)
+          then Indication_Kind (Handle)
+          else Indication_Kind (Promise))
+         = Indication_Kind (Promise)'Old;
    --  Try to get the pending response primitive from a Promise.
    --
    --  If the pending response primitive has been sent by the Service User,
@@ -505,11 +557,13 @@ private
 
    package STQ is new
      LibSAP.Singleton_Transaction_Queues
-       (Request_Type     => Indication_Type,
-        Confirm_Type     => Response_Type,
-        Queue_Capacity   => Queue_Capacity,
-        Requires_Confirm => Requires_Response,
-        Valid_Confirm    => Valid_Response);
+       (Request_Kind_Type => Indication_Kind_Type,
+        Request_Type      => Indication_Type,
+        Confirm_Type      => Response_Type,
+        Queue_Capacity    => Queue_Capacity,
+        Request_Kind      => Indication_Kind,
+        Requires_Confirm  => Requires_Response,
+        Valid_Confirm     => Valid_Response);
    pragma Part_Of (Transaction_Queue);
 
    type Indication_Handle is limited record
@@ -559,6 +613,26 @@ private
 
    function Get_TID (Handle : Service_Handle) return Transaction_ID
    is (Transaction_ID (STQ.Get_TID (Handle.Handle)));
+
+   ---------------------
+   -- Indication_Kind --
+   ---------------------
+
+   function Indication_Kind
+     (Handle : Indication_Handle) return Indication_Kind_Type
+   is (STQ.Request_Kind (Handle.Handle));
+
+   function Indication_Kind
+     (Promise : Response_Promise) return Indication_Kind_Type
+   is (STQ.Request_Kind (Promise.Handle));
+
+   function Indication_Kind
+     (Handle : Response_Handle) return Indication_Kind_Type
+   is (STQ.Request_Kind (Handle.Handle));
+
+   function Indication_Kind
+     (Handle : Service_Handle) return Indication_Kind_Type
+   is (STQ.Request_Kind (Handle.Handle));
 
    -------------------
    -- Indication_Ready --

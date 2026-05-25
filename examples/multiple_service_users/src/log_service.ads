@@ -25,6 +25,8 @@ is
 
    subtype Message_Length is Natural range 0 .. 128;
 
+   type Request_Kind is (LOG_req);
+
    type LOG_Req_Type (Length : Message_Length := 0) is record
       Message : String (1 .. Length) := [others => ' '];
    end record;
@@ -34,6 +36,10 @@ is
    type Confirm_Type is record
       Dummy : Boolean := False; --  Needed to ensure default initialization
    end record;
+
+   function Get_Request_Kind
+     (Request : LOG_Req_Type with Unreferenced) return Request_Kind
+   is (LOG_req);
 
    function Requires_Confirm
      (Request : LOG_Req_Type with Unreferenced) return Boolean
@@ -46,12 +52,14 @@ is
 
    package SAP is new
      LibSAP.Synchronous_Provider_Service_Access_Point
-       (Request_Type     => LOG_Req_Type,
-        Confirm_Type     => Confirm_Type,
-        Requires_Confirm => Requires_Confirm,
-        Valid_Confirm    => Valid_Confirm,
-        Priority         => System.Priority'Last,
-        Queue_Capacity   => 20);
+       (Request_Kind_Type => Request_Kind,
+        Request_Type      => LOG_Req_Type,
+        Confirm_Type      => Confirm_Type,
+        Request_Kind      => Get_Request_Kind,
+        Requires_Confirm  => Requires_Confirm,
+        Valid_Confirm     => Valid_Confirm,
+        Priority          => System.Priority'Last,
+        Queue_Capacity    => 20);
 
    procedure Log_Message (Message : String)
    with
