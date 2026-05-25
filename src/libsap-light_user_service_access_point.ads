@@ -36,6 +36,10 @@ is
 
    type Transaction_ID is new Positive range 1 .. Queue_Capacity;
 
+   function Always_True
+     (Indication : Indication_Type with Unreferenced) return Boolean
+   is (True);
+
    ------------------------
    -- Indication Handles --
    ------------------------
@@ -148,15 +152,17 @@ is
 
    generic
       with procedure Build (Indication : out Indication_Type);
-      with function Precondition return Boolean;
-      with function Postcondition return Boolean;
+      with function Precondition return Boolean is Always_True;
+      with
+        function Postcondition (Indication : Indication_Type) return Boolean
+        is Always_True;
    procedure Build_Contextual_Indication (Handle : in out Indication_Handle)
    with
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
        and Indication_Ready (Handle)
-       and Postcondition
+       and Postcondition (Indication_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Indication, but provides additional proof context to be
    --  passed to and from the call to Build via a precondition and
@@ -164,8 +170,10 @@ is
 
    generic
       with procedure Build (Indication : out Indication_Type);
-      with function Precondition return Boolean;
-      with function Postcondition return Boolean;
+      with function Precondition return Boolean is Always_True;
+      with
+        function Postcondition (Indication : Indication_Type) return Boolean
+        is Always_True;
    procedure Build_Contextual_Indication_No_Response
      (Handle : in out Indication_Handle)
    with
@@ -174,7 +182,7 @@ is
        not Is_Null (Handle)
        and Indication_Ready (Handle)
        and not Requires_Response (Handle)
-       and Postcondition
+       and Postcondition (Indication_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Indication_No_Confirm, but provides additional proof
    --  context to be passed to and from the call to Build via a precondition
@@ -182,8 +190,10 @@ is
 
    generic
       with procedure Build (Indication : out Indication_Type);
-      with function Precondition return Boolean;
-      with function Postcondition return Boolean;
+      with function Precondition return Boolean is Always_True;
+      with
+        function Postcondition (Indication : Indication_Type) return Boolean
+        is Always_True;
    procedure Build_Contextual_Indication_With_Response
      (Handle : in out Indication_Handle)
    with
@@ -192,7 +202,7 @@ is
        not Is_Null (Handle)
        and Indication_Ready (Handle)
        and Requires_Response (Handle)
-       and Postcondition
+       and Postcondition (Indication_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Same as Build_Indication_With_Confirm, but provides additional proof
    --  context to be passed to and from the call to Build via a precondition
