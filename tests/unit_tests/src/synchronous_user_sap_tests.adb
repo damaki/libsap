@@ -56,6 +56,10 @@ package body Synchronous_User_SAP_Tests is
       end case;
    end record;
 
+   function Get_Indication_Kind
+     (Indication : Indication_Type) return Indication_Kind
+   is (Indication.Kind);
+
    function Requires_Response (Indication : Indication_Type) return Boolean
    is (Indication.Kind = IND_1);
 
@@ -72,12 +76,14 @@ package body Synchronous_User_SAP_Tests is
 
    package Test_One_Normal_Transaction_SAP is new
      LibSAP.Synchronous_User_Service_Access_Point
-       (Indication_Type   => Indication_Type,
-        Response_Type     => Response_Type,
-        Queue_Capacity    => 3,
-        Priority          => System.Priority'Last,
-        Requires_Response => Requires_Response,
-        Valid_Response    => Valid_Response);
+       (Indication_Kind_Type => Indication_Kind,
+        Indication_Type      => Indication_Type,
+        Response_Type        => Response_Type,
+        Queue_Capacity       => 3,
+        Priority             => System.Priority'Last,
+        Indication_Kind      => Get_Indication_Kind,
+        Requires_Response    => Requires_Response,
+        Valid_Response       => Valid_Response);
 
    procedure Test_One_Normal_Transaction (T : in out Test) is
       package SAP renames Test_One_Normal_Transaction_SAP;
@@ -154,12 +160,14 @@ package body Synchronous_User_SAP_Tests is
 
    package Test_Discard_Before_Response_Sent_SAP is new
      LibSAP.Synchronous_User_Service_Access_Point
-       (Indication_Type   => Indication_Type,
-        Response_Type     => Response_Type,
-        Queue_Capacity    => 3,
-        Priority          => System.Priority'Last,
-        Requires_Response => Requires_Response,
-        Valid_Response    => Valid_Response);
+       (Indication_Kind_Type => Indication_Kind,
+        Indication_Type      => Indication_Type,
+        Response_Type        => Response_Type,
+        Queue_Capacity       => 3,
+        Priority             => System.Priority'Last,
+        Indication_Kind      => Get_Indication_Kind,
+        Requires_Response    => Requires_Response,
+        Valid_Response       => Valid_Response);
 
    procedure Test_Discard_Before_Response_Sent (T : in out Test) is
       package SAP renames Test_Discard_Before_Response_Sent_SAP;
@@ -263,12 +271,14 @@ package body Synchronous_User_SAP_Tests is
 
    package Test_Discard_After_Response_Sent_SAP is new
      LibSAP.Synchronous_User_Service_Access_Point
-       (Indication_Type   => Indication_Type,
-        Response_Type     => Response_Type,
-        Queue_Capacity    => 3,
-        Priority          => System.Priority'Last,
-        Requires_Response => Requires_Response,
-        Valid_Response    => Valid_Response);
+       (Indication_Kind_Type => Indication_Kind,
+        Indication_Type      => Indication_Type,
+        Response_Type        => Response_Type,
+        Queue_Capacity       => 3,
+        Priority             => System.Priority'Last,
+        Indication_Kind      => Get_Indication_Kind,
+        Requires_Response    => Requires_Response,
+        Valid_Response       => Valid_Response);
 
    procedure Test_Discard_After_Response_Sent (T : in out Test) is
       package SAP renames Test_Discard_After_Response_Sent_SAP;
