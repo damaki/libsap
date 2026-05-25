@@ -13,7 +13,7 @@ jobs:
     outputs:
       directories: ${{ steps.list-dirs.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: list-dirs
         run: |
           # Finds example subdirs and creates a JSON array ["dir1", "dir2"]
@@ -29,7 +29,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: alire-project/setup-alire@v4
         with:
@@ -74,7 +74,7 @@ jobs:
         subdir: ${{ fromJson(needs.setup.outputs.directories) }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: alire-project/setup-alire@v4
         with:
