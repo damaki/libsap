@@ -42,7 +42,8 @@ is
         Contract_Cases =>
           (STQ.Requires_Confirm (Handle) =>
              not STQ.Is_Null (Promise)
-             and STQ.Get_TID (Promise) = STQ.Get_TID (Handle)'Old,
+             and STQ.Get_TID (Promise) = STQ.Get_TID (Handle)'Old
+             and STQ.Request_Kind (Promise) = STQ.Request_Kind (Handle)'Old,
            others                        => STQ.Is_Null (Promise));
 
       function Has_Pending_Request return Boolean;

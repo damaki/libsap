@@ -21,10 +21,15 @@
 private with LibSAP.Pointer_Queues;
 
 private generic
+   type Request_Kind_Type is (<>);
+
    type Request_Type is limited private;
    type Confirm_Type is limited private;
 
    Queue_Capacity : Positive;
+
+   with
+     function Request_Kind (Request : Request_Type) return Request_Kind_Type;
 
    with function Requires_Confirm (Request : Request_Type) return Boolean;
    --  Returns true if the Request requires a confirm primitive to be sent in
@@ -74,6 +79,13 @@ is
    function Request_Ready (Handle : Request_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
 
+   function Request_Kind (Handle : Request_Handle) return Request_Kind_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Request_Kind'Result = Request_Kind (Request_Reference (Handle).all);
+
    procedure Move
      (Target : in out Request_Handle; Source : in out Request_Handle)
    with
@@ -85,7 +97,8 @@ is
        and Is_Null (Source)
        and (Get_TID (Target) = Get_TID (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
-       and (Request_Ready (Target) = Request_Ready (Source)'Old);
+       and (Request_Ready (Target) = Request_Ready (Source)'Old)
+       and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    generic
       with procedure Build (Request : out Request_Type);
@@ -182,13 +195,19 @@ is
    function Get_TID (Handle : Confirm_Promise) return Transaction_ID
    with Global => null, Pre => not Is_Null (Handle);
 
+   function Request_Kind (Promise : Confirm_Promise) return Request_Kind_Type
+   with Global => null;
+
    procedure Move
      (Target : in out Confirm_Promise; Source : in out Confirm_Promise)
    with
      Inline,
      Global => null,
      Pre    => Is_Null (Target),
-     Post   => (Is_Null (Target) = Is_Null (Source)'Old) and Is_Null (Source);
+     Post   =>
+       (Is_Null (Target) = Is_Null (Source)'Old)
+       and Is_Null (Source)
+       and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    ---------------------
    -- Confirm Handles --
@@ -223,13 +242,23 @@ is
        Valid_Confirm
          (Request_Reference (Handle).all, Confirm_Reference'Result.all);
 
+   function Request_Kind (Handle : Confirm_Handle) return Request_Kind_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Request_Kind'Result = Request_Kind (Request_Reference (Handle).all);
+
    procedure Move
      (Target : in out Confirm_Handle; Source : in out Confirm_Handle)
    with
      Inline,
      Global => null,
      Pre    => Is_Null (Target) and not Is_Null (Source),
-     Post   => (Is_Null (Target) = Is_Null (Source)'Old) and Is_Null (Source);
+     Post   =>
+       (Is_Null (Target) = Is_Null (Source)'Old)
+       and Is_Null (Source)
+       and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    ---------------------
    -- Service Handles --
@@ -254,6 +283,13 @@ is
      (Handle : Service_Handle) return not null access constant Request_Type
    with Global => null, Pre => not Is_Null (Handle);
 
+   function Request_Kind (Handle : Service_Handle) return Request_Kind_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Request_Kind'Result = Request_Kind (Request_Reference (Handle).all);
+
    function Requires_Confirm (Handle : Service_Handle) return Boolean
    with
      Global => null,
@@ -277,7 +313,8 @@ is
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Get_TID (Target) = Get_TID (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
-       and (Has_Valid_Confirm (Target) = Has_Valid_Confirm (Source)'Old);
+       and (Has_Valid_Confirm (Target) = Has_Valid_Confirm (Source)'Old)
+       and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    generic
       with
@@ -289,7 +326,8 @@ is
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
        and Has_Valid_Confirm (Handle)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and (Request_Kind (Handle) = Request_Kind (Handle)'Old);
 
    ----------------------------
    -- Transaction_Queue_Type --
@@ -334,7 +372,9 @@ is
      Post           => Is_Null (Handle) and Has_Pending_Request (Queue),
      Contract_Cases =>
        (Requires_Confirm (Handle) =>
-          not Is_Null (Promise) and (Get_TID (Promise) = Get_TID (Handle)'Old),
+          not Is_Null (Promise)
+          and (Get_TID (Promise) = Get_TID (Handle)'Old)
+          and (Request_Kind (Promise) = Request_Kind (Handle)'Old),
         others                    => Is_Null (Promise));
 
    procedure Discard (Promise : in out Confirm_Promise)
@@ -352,7 +392,12 @@ is
          (Get_TID (Promise)'Old
           = (if not Is_Null (Handle)
              then Get_TID (Handle)
-             else Get_TID (Promise)));
+             else Get_TID (Promise)))
+       and
+         (if not Is_Null (Handle)
+          then Request_Kind (Handle)
+          else Request_Kind (Promise))
+         = Request_Kind (Promise)'Old;
 
    procedure Release (Handle : in out Confirm_Handle)
    with
@@ -462,11 +507,17 @@ private
    --------------------
 
    function Service_Handle_Predicate
-     (TD : not null Transaction_Data_Access) return Boolean
+     (TD                 : not null Transaction_Data_Access;
+      Fixed_Request_Kind : Request_Kind_Type) return Boolean
    with Ghost;
 
-   type Service_Handle is limited new Transaction_Handle
-   with Ghost_Predicate => (if TD /= null then Service_Handle_Predicate (TD));
+   type Service_Handle is limited record
+      TD                 : Transaction_Data_Access := null;
+      Fixed_Request_Kind : Request_Kind_Type := Request_Kind_Type'First;
+   end record
+   with
+     Ghost_Predicate =>
+       (if TD /= null then Service_Handle_Predicate (TD, Fixed_Request_Kind));
 
    function Is_Null (Handle : Service_Handle) return Boolean
    is (Handle.TD = null);
@@ -491,6 +542,14 @@ private
 
    type Confirm_Promise is limited record
       Token : Confirm_Promise_Token_Access := null;
+
+      Request_Kind : Request_Kind_Type := Request_Kind_Type'First;
+      --  Holds a copy of the Request_Kind at the point when the request
+      --  was sent to the Service Provider. This helps the Service User to
+      --  prove that the Request_Kind is preserved when they get the confirm
+      --  primitve from the Service Provider.
+      --
+      --  This field must not be modified while Token /= null.
    end record;
 
    function Is_Null (Promise : Confirm_Promise) return Boolean

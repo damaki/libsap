@@ -69,6 +69,9 @@ is
       end case;
    end record;
 
+   function Get_Request_Kind (Request : Request_Type) return Request_Kind
+   is (Request.Kind);
+
    --  Requires_Confirm is used to determine whether a request primitive
    --  requires the Service to send a corresponding confirm primitive.
    --
@@ -103,12 +106,14 @@ is
 
    package SAP is new
      LibSAP.Synchronous_Provider_Service_Access_Point
-       (Request_Type     => Request_Type,
-        Confirm_Type     => Confirm_Type,
-        Requires_Confirm => Requires_Confirm,
-        Valid_Confirm    => Valid_Confirm,
-        Priority         => System.Priority'Last,
-        Queue_Capacity   => 1);
+       (Request_Kind_Type => Request_Kind,
+        Request_Type      => Request_Type,
+        Confirm_Type      => Confirm_Type,
+        Request_Kind      => Get_Request_Kind,
+        Requires_Confirm  => Requires_Confirm,
+        Valid_Confirm     => Valid_Confirm,
+        Priority          => System.Priority'Last,
+        Queue_Capacity    => 1);
 
    task Service_Provider_Task
      with Global => (In_Out => SAP.Transaction_Queue);

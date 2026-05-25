@@ -9,11 +9,16 @@ with System;
 private with LibSAP.Singleton_Transaction_Queues;
 
 generic
+   type Request_Kind_Type is (<>);
+
    type Request_Type is limited private;
    type Confirm_Type is limited private;
 
    Queue_Capacity : Positive;
    --  Configures the maximum number of concurrent transactions
+
+   with
+     function Request_Kind (Request : Request_Type) return Request_Kind_Type;
 
    with function Requires_Confirm (Request : Request_Type) return Boolean;
    --  Returns true if the Request requires a confirm primitive to be sent in
@@ -32,6 +37,8 @@ package LibSAP.Synchronous_Provider_Service_Access_Point with
 is
 
    type Transaction_ID is new Positive range 1 .. Queue_Capacity;
+
+   function Always_True return Boolean is (True);
 
    ---------------------
    -- Request Handles --
@@ -55,6 +62,13 @@ is
      (Handle : Request_Handle) return not null access constant Request_Type
    with Global => null, Pre => not Is_Null (Handle);
 
+   function Request_Kind (Handle : Request_Handle) return Request_Kind_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Request_Kind'Result = Request_Kind (Request_Reference (Handle).all);
+
    function Requires_Confirm (Handle : Request_Handle) return Boolean
    with
      Global => null,
@@ -76,7 +90,8 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
-       and (Request_Ready (Target) = Request_Ready (Source)'Old);
+       and (Request_Ready (Target) = Request_Ready (Source)'Old)
+       and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    generic
       with procedure Build (Request : out Request_Type);
@@ -203,13 +218,19 @@ is
    function Get_TID (Promise : Confirm_Promise) return Transaction_ID
    with Inline, Global => null, Pre => not Is_Null (Promise);
 
+   function Request_Kind (Handle : Confirm_Promise) return Request_Kind_Type
+   with Global => null;
+
    procedure Move
      (Target : in out Confirm_Promise; Source : in out Confirm_Promise)
    with
      Inline,
      Global => null,
      Pre    => Is_Null (Target),
-     Post   => (Is_Null (Target) = Is_Null (Source)'Old) and Is_Null (Source);
+     Post   =>
+       (Is_Null (Target) = Is_Null (Source)'Old)
+       and Is_Null (Source)
+       and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    ---------------------
    -- Confirm Handles --
@@ -244,13 +265,23 @@ is
        Valid_Confirm
          (Request_Reference (Handle).all, Confirm_Reference'Result.all);
 
+   function Request_Kind (Handle : Confirm_Handle) return Request_Kind_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Request_Kind'Result = Request_Kind (Request_Reference (Handle).all);
+
    procedure Move
      (Target : in out Confirm_Handle; Source : in out Confirm_Handle)
    with
      Inline,
      Global => null,
      Pre    => Is_Null (Target) and not Is_Null (Source),
-     Post   => (Is_Null (Target) = Is_Null (Source)'Old) and Is_Null (Source);
+     Post   =>
+       (Is_Null (Target) = Is_Null (Source)'Old)
+       and Is_Null (Source)
+       and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    ---------------------
    -- Service Handles --
@@ -277,6 +308,13 @@ is
        Requires_Confirm'Result
        = Requires_Confirm (Request_Reference (Handle).all);
 
+   function Request_Kind (Handle : Service_Handle) return Request_Kind_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Request_Kind'Result = Request_Kind (Request_Reference (Handle).all);
+
    function Has_Valid_Confirm (Handle : Service_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
 
@@ -290,7 +328,8 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
-       and (Has_Valid_Confirm (Target) = Has_Valid_Confirm (Source)'Old);
+       and (Has_Valid_Confirm (Target) = Has_Valid_Confirm (Source)'Old)
+       and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    -----------------------------
    -- Service User Operations --
@@ -322,7 +361,9 @@ is
      Post           => Is_Null (Handle),
      Contract_Cases =>
        (Requires_Confirm (Handle) =>
-          not Is_Null (Promise) and (Get_TID (Promise) = Get_TID (Handle)'Old),
+          not Is_Null (Promise)
+          and (Get_TID (Promise) = Get_TID (Handle)'Old)
+          and (Request_Kind (Promise) = Request_Kind (Handle)'Old),
         others                    => Is_Null (Promise));
    --  Send a prepared request to the Service Provider.
    --
@@ -368,7 +409,12 @@ is
          (Get_TID (Promise)'Old
           = (if not Is_Null (Handle)
              then Get_TID (Handle)
-             else Get_TID (Promise)));
+             else Get_TID (Promise)))
+       and
+         (if not Is_Null (Handle)
+          then Request_Kind (Handle)
+          else Request_Kind (Promise))
+         = Request_Kind (Promise)'Old;
    --  Try to get the pending confirm primitive from a Promise.
    --
    --  If the pending confirm primitive has been sent by the Service Provider,
@@ -498,11 +544,13 @@ private
 
    package STQ is new
      LibSAP.Singleton_Transaction_Queues
-       (Request_Type     => Request_Type,
-        Confirm_Type     => Confirm_Type,
-        Queue_Capacity   => Queue_Capacity,
-        Requires_Confirm => Requires_Confirm,
-        Valid_Confirm    => Valid_Confirm);
+       (Request_Kind_Type => Request_Kind_Type,
+        Request_Type      => Request_Type,
+        Confirm_Type      => Confirm_Type,
+        Queue_Capacity    => Queue_Capacity,
+        Request_Kind      => Request_Kind,
+        Requires_Confirm  => Requires_Confirm,
+        Valid_Confirm     => Valid_Confirm);
    pragma Part_Of (Transaction_Queue);
 
    type Request_Handle is limited record
@@ -552,6 +600,22 @@ private
 
    function Get_TID (Handle : Service_Handle) return Transaction_ID
    is (Transaction_ID (STQ.Get_TID (Handle.Handle)));
+
+   ------------------
+   -- Request_Kind --
+   ------------------
+
+   function Request_Kind (Handle : Request_Handle) return Request_Kind_Type
+   is (STQ.Request_Kind (Handle.Handle));
+
+   function Request_Kind (Handle : Confirm_Promise) return Request_Kind_Type
+   is (STQ.Request_Kind (Handle.Handle));
+
+   function Request_Kind (Handle : Confirm_Handle) return Request_Kind_Type
+   is (STQ.Request_Kind (Handle.Handle));
+
+   function Request_Kind (Handle : Service_Handle) return Request_Kind_Type
+   is (STQ.Request_Kind (Handle.Handle));
 
    -------------------
    -- Request_Ready --

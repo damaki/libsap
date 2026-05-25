@@ -146,7 +146,8 @@ is
    ------------------------------
 
    function Service_Handle_Predicate
-     (TD : not null Transaction_Data_Access) return Boolean
+     (TD                 : not null Transaction_Data_Access;
+      Fixed_Request_Kind : Request_Kind_Type) return Boolean
    is (TD.all.State in Request_Read | Confirm_Written
 
        and then
@@ -155,7 +156,9 @@ is
             Requires_Confirm (TD.all.Request)
             and then Valid_Confirm (TD.all.Request, TD.all.Confirm))
 
-       and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request));
+       and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request)
+
+       and then Fixed_Request_Kind = Request_Kind (TD.all.Request));
 
    ------------------------------
    -- Confirm_Handle_Predicate --
@@ -190,6 +193,22 @@ is
 
    function Get_TID (Handle : Service_Handle) return Transaction_ID
    is (Handle.TD.all.TID);
+
+   ------------------
+   -- Request_Kind --
+   ------------------
+
+   function Request_Kind (Handle : Request_Handle) return Request_Kind_Type
+   is (Request_Kind (Handle.TD.all.Request));
+
+   function Request_Kind (Promise : Confirm_Promise) return Request_Kind_Type
+   is (Promise.Request_Kind);
+
+   function Request_Kind (Handle : Confirm_Handle) return Request_Kind_Type
+   is (Request_Kind (Handle.TD.all.Request));
+
+   function Request_Kind (Handle : Service_Handle) return Request_Kind_Type
+   is (Request_Kind (Handle.TD.all.Request));
 
    -----------------------
    -- Request_Reference --
@@ -340,6 +359,7 @@ is
    procedure Move
      (Target : in out Confirm_Promise; Source : in out Confirm_Promise) is
    begin
+      Target.Request_Kind := Source.Request_Kind;
       Target.Token := Source.Token;
       Source.Token := null;
    end Move;
@@ -354,6 +374,7 @@ is
    procedure Move
      (Target : in out Service_Handle; Source : in out Service_Handle) is
    begin
+      Target.Fixed_Request_Kind := Source.Fixed_Request_Kind;
       Target.TD := Source.TD;
       Source.TD := null;
    end Move;
@@ -449,6 +470,7 @@ is
       Temp.all.State := Request_Pending;
 
       if Requires_Confirm (Temp.all.Request) then
+         Promise.Request_Kind := Request_Kind (Temp.all.Request);
          Promise.Token := Temp.all.Cfm_Token;
          Temp.all.Cfm_Token := null;
       end if;
@@ -495,6 +517,7 @@ is
          Temp := Transaction_Data_Access (Pending_Ptr);
 
          Temp.all.State := Request_Read;
+         Handle.Fixed_Request_Kind := Request_Kind (Temp.all.Request);
          Handle.TD := Temp;
       end if;
    end Try_Get_Next_Request;
@@ -578,6 +601,36 @@ is
 
          Temp.all.State := Confirm_Read;
          Handle.TD := Temp;
+
+         --  Rationale for pragma Assume:
+         --
+         --  We assume here that the Request_Kind has not changed since the
+         --  request was originally sent to the Service Provider.
+         --
+         --  The only way for this assumption to fail is if either:
+         --   1. the Service Provider was able to modify the request object in
+         --      a way that changes its Request_Kind; or
+         --   2. the Promise object was modified to change the Request_Kind
+         --      that was cached when the request was originally sent.
+         --
+         --  #1 cannot happen in SPARK because the Service_Handle only provides
+         --  a read-only view of the request object to the Service Provider, so
+         --  the Request_Kind remains effectively constant. This is further
+         --  enforced by the type predicate of Service_Handle, which ensures
+         --  that the Request_Kind is always equal to a cached value, so it
+         --  cannot be accidentally changed without being detected by
+         --  GNATprove.
+         --
+         --  #2 cannot happen in SPARK because the Confirm_Promise object does
+         --  not provide any operations that would change its Request_Kind.
+
+         pragma Assume (Request_Kind (Handle) = Promise.Request_Kind);
+
+         --  Defensive check for the above pragma Assume
+
+         if Request_Kind (Handle) /= Promise.Request_Kind then
+            raise Program_Error with "Request_Kind";
+         end if;
       end if;
    end Try_Get_Confirm;
 
