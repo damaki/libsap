@@ -102,76 +102,14 @@ is
 
    generic
       with procedure Build (Request : out Request_Type);
+      with function Precondition return Boolean;
+      with function Postcondition (Request : Request_Type) return Boolean;
    procedure Build_Request (Handle : in out Request_Handle)
    with
-     Pre  => not Is_Null (Handle),
-     Post =>
-       not Is_Null (Handle)
-       and Request_Ready (Handle)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
-
-   generic
-      with procedure Build (Request : out Request_Type);
-   procedure Build_Request_No_Confirm (Handle : in out Request_Handle)
-   with
-     Pre  => not Is_Null (Handle),
-     Post =>
-       not Is_Null (Handle)
-       and Request_Ready (Handle)
-       and not Requires_Confirm (Handle)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
-
-   generic
-      with procedure Build (Request : out Request_Type);
-   procedure Build_Request_With_Confirm (Handle : in out Request_Handle)
-   with
-     Pre  => not Is_Null (Handle),
-     Post =>
-       not Is_Null (Handle)
-       and Request_Ready (Handle)
-       and Requires_Confirm (Handle)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
-
-   generic
-      with procedure Build (Request : out Request_Type);
-      with function Precondition return Boolean;
-      with function Postcondition (Request : Request_Type) return Boolean;
-   procedure Build_Contextual_Request (Handle : in out Request_Handle)
-   with
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
        and Request_Ready (Handle)
-       and Postcondition (Request_Reference (Handle).all)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
-
-   generic
-      with procedure Build (Request : out Request_Type);
-      with function Precondition return Boolean;
-      with function Postcondition (Request : Request_Type) return Boolean;
-   procedure Build_Contextual_Request_No_Confirm
-     (Handle : in out Request_Handle)
-   with
-     Pre  => not Is_Null (Handle) and then Precondition,
-     Post =>
-       not Is_Null (Handle)
-       and Request_Ready (Handle)
-       and not Requires_Confirm (Handle)
-       and Postcondition (Request_Reference (Handle).all)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
-
-   generic
-      with procedure Build (Request : out Request_Type);
-      with function Precondition return Boolean;
-      with function Postcondition (Request : Request_Type) return Boolean;
-   procedure Build_Contextual_Request_With_Confirm
-     (Handle : in out Request_Handle)
-   with
-     Pre  => not Is_Null (Handle) and then Precondition,
-     Post =>
-       not Is_Null (Handle)
-       and Request_Ready (Handle)
-       and Requires_Confirm (Handle)
        and Postcondition (Request_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
 

@@ -97,115 +97,28 @@ is
 
    generic
       with procedure Build (Request : out Request_Type);
+      with function Precondition return Boolean is Always_True;
+      with
+        function Postcondition (Request : Request_Type) return Boolean
+        is Always_True;
    procedure Build_Request (Handle : in out Request_Handle)
    with
-     Pre  => not Is_Null (Handle),
-     Post =>
-       not Is_Null (Handle)
-       and Request_Ready (Handle)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
-   --  Write a request.
-   --
-   --  The request object is passed to the Build generic formal procedure,
-   --  which does the actual write.
-   --
-   --  This is a non-blocking operation if and only if Build is non-blocking.
-
-   generic
-      with procedure Build (Request : out Request_Type);
-   procedure Build_Request_No_Confirm (Handle : in out Request_Handle)
-   with
-     Pre  => not Is_Null (Handle),
-     Post =>
-       not Is_Null (Handle)
-       and Request_Ready (Handle)
-       and not Requires_Confirm (Handle)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
-   --  Write a request that does not require a confirm.
-   --
-   --  The request object is passed to the Build generic formal procedure,
-   --  which does the actual write.
-   --
-   --  The postcondition of Build must contain: not Requires_Confirm (Request)
-   --
-   --  This is a non-blocking operation if and only if Build is non-blocking.
-
-   generic
-      with procedure Build (Request : out Request_Type);
-   procedure Build_Request_With_Confirm (Handle : in out Request_Handle)
-   with
-     Pre  => not Is_Null (Handle),
-     Post =>
-       not Is_Null (Handle)
-       and Request_Ready (Handle)
-       and Requires_Confirm (Handle)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
-   --  Write a request that requires a confirm.
-   --
-   --  The request object is passed to the Build generic formal procedure,
-   --  which does the actual write.
-   --
-   --  The postcondition of Build must contain: Requires_Confirm (Request)
-   --
-   --  This is a non-blocking operation if and only if Build is non-blocking.
-
-   generic
-      with procedure Build (Request : out Request_Type);
-      with function Precondition return Boolean is Always_True;
-      with
-        function Postcondition (Request : Request_Type) return Boolean
-        is Always_True;
-   procedure Build_Contextual_Request (Handle : in out Request_Handle)
-   with
      Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
        and Request_Ready (Handle)
        and Postcondition (Request_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
-   --  Same as Build_Request, but provides additional proof context to be
-   --  passed to and from the call to Build via a precondition and
-   --  postcondition.
-
-   generic
-      with procedure Build (Request : out Request_Type);
-      with function Precondition return Boolean is Always_True;
-      with
-        function Postcondition (Request : Request_Type) return Boolean
-        is Always_True;
-   procedure Build_Contextual_Request_No_Confirm
-     (Handle : in out Request_Handle)
-   with
-     Pre  => not Is_Null (Handle) and then Precondition,
-     Post =>
-       not Is_Null (Handle)
-       and Request_Ready (Handle)
-       and not Requires_Confirm (Handle)
-       and Postcondition (Request_Reference (Handle).all)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
-   --  Same as Build_Request_No_Confirm, but provides additional proof context
-   --  to be passed to and from the call to Build via a precondition and
-   --  postcondition.
-
-   generic
-      with procedure Build (Request : out Request_Type);
-      with function Precondition return Boolean is Always_True;
-      with
-        function Postcondition (Request : Request_Type) return Boolean
-        is Always_True;
-   procedure Build_Contextual_Request_With_Confirm
-     (Handle : in out Request_Handle)
-   with
-     Pre  => not Is_Null (Handle) and then Precondition,
-     Post =>
-       not Is_Null (Handle)
-       and Request_Ready (Handle)
-       and Requires_Confirm (Handle)
-       and Postcondition (Request_Reference (Handle).all)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
-   --  Same as Build_Request_With_Confirm, but provides additional proof
-   --  context to be passed to and from the call to Build via a precondition
-   --  and postcondition.
+   --  Write a request primitive.
+   --
+   --  The request object is passed to the Build generic formal procedure,
+   --  which does the actual write.
+   --
+   --  The Precondition can be used to express the information needed to prove
+   --  the precondition of Build.
+   --
+   --  Postcondition can be used to express information from Build's
+   --  postcondition that is needed after calling this function.
 
    ---------------------
    -- Confirm Promise --
