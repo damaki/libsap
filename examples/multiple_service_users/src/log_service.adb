@@ -39,11 +39,11 @@ is
       -------------------
 
       procedure Build_Request is new
-        SAP.Build_Contextual_Request_No_Confirm
-          (Build         => Write_Message,
-           Precondition  => Message_Length_In_Range);
+        SAP.Build_Request
+          (Build        => Write_Message,
+           Precondition => Message_Length_In_Range);
 
-      Handle : SAP.Request_Handle;
+      Handle      : SAP.Request_Handle;
       Cfm_Promise : SAP.Confirm_Promise;
 
    begin

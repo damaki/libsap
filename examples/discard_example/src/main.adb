@@ -54,7 +54,9 @@ begin
       end Build_ECHO_Request;
 
       procedure Build_Request is new
-        Service_Provider.SAP.Build_Request_With_Confirm (Build_ECHO_Request);
+        Service_Provider.SAP.Build_Request
+          (Build         => Build_ECHO_Request,
+           Postcondition => Service_Provider.Requires_Confirm);
 
       Req_Handle : Service_Provider.SAP.Request_Handle;
 

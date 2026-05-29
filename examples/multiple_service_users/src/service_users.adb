@@ -54,7 +54,7 @@ is
          end Build_ECHO_Request;
 
          procedure Build_Request is new
-           Service_Provider.SAP.Build_Contextual_Request_With_Confirm
+           Service_Provider.SAP.Build_Request
              (Build         => Build_ECHO_Request,
               Postcondition => Is_ECHO_Req);
 
