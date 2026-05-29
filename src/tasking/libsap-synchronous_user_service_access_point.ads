@@ -44,6 +44,11 @@ is
      (Indication : Indication_Type with Unreferenced) return Boolean
    is (True);
 
+   function Always_True
+     (Indication : Indication_Type with Unreferenced;
+      Response   : Response_Type with Unreferenced) return Boolean
+   is (True);
+
    ------------------------
    -- Indication Handles --
    ------------------------
@@ -249,6 +254,12 @@ is
    function Has_Valid_Response (Handle : Service_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
 
+   function Response_Reference
+     (Handle : Service_Handle) return not null access constant Response_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle) and then Has_Valid_Response (Handle);
+
    procedure Move
      (Target : in out Service_Handle; Source : in out Service_Handle)
    with
@@ -445,14 +456,28 @@ is
       with
         procedure Process_Indication_With_Response
           (Indication : Indication_Type; Response : out Response_Type);
+
+      with function Precondition return Boolean is Always_True;
+
+      with
+        function Postcondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
    procedure Process_Indication (Handle : in out Service_Handle)
    with
-     Pre  => not Is_Null (Handle),
+     Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
        and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
-       and (if Requires_Response (Handle) then Has_Valid_Response (Handle))
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         (if Requires_Response (Handle)'Old
+          then
+            Has_Valid_Response (Handle)
+            and then
+              Postcondition
+                (Indication_Reference (Handle).all,
+                 Response_Reference (Handle).all));
    --  Process an indication, and generate a response if one is required.
    --
    --  This procedure passes the indication to either
@@ -463,14 +488,28 @@ is
       with
         procedure Build
           (Indication : Indication_Type; Response : out Response_Type);
+
+      with function Precondition return Boolean is Always_True;
+
+      with
+        function Postcondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
    procedure Build_Response (Handle : in out Service_Handle)
    with
-     Pre  => not Is_Null (Handle) and then Requires_Response (Handle),
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition
+       and then Requires_Response (Handle),
      Post =>
        not Is_Null (Handle)
        and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
        and Has_Valid_Response (Handle)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         Postcondition
+           (Indication_Reference (Handle).all,
+            Response_Reference (Handle).all);
    --  Builds a response primitive.
    --
    --  The response primitive is passed to the Build procedure, which writes

@@ -258,6 +258,14 @@ is
    function Has_Valid_Confirm (Handle : Service_Handle) return Boolean
    is (Handle.TD.all.State = Confirm_Written);
 
+   -----------------------
+   -- Confirm_Reference --
+   -----------------------
+
+   function Confirm_Reference
+     (Handle : Service_Handle) return not null access constant Confirm_Type
+   is (Handle.TD.all.Confirm'Access);
+
    -------------------
    -- Build_Request --
    -------------------

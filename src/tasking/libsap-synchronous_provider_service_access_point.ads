@@ -42,6 +42,11 @@ is
      (Request : Request_Type with Unreferenced) return Boolean
    is (True);
 
+   function Always_True
+     (Request : Request_Type with Unreferenced;
+      Confirm : Confirm_Type with Unreferenced) return Boolean
+   is (True);
+
    ---------------------
    -- Request Handles --
    ---------------------
@@ -239,6 +244,12 @@ is
    function Has_Valid_Confirm (Handle : Service_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
 
+   function Confirm_Reference
+     (Handle : Service_Handle) return not null access constant Confirm_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle) and then Has_Valid_Confirm (Handle);
+
    procedure Move
      (Target : in out Service_Handle; Source : in out Service_Handle)
    with
@@ -431,14 +442,28 @@ is
       with
         procedure Process_Request_With_Confirm
           (Request : Request_Type; Confirm : out Confirm_Type);
+
+      with function Precondition return Boolean is Always_True;
+
+      with
+        function Postcondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        is Always_True;
    procedure Process_Request (Handle : in out Service_Handle)
    with
-     Pre  => not Is_Null (Handle),
+     Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
-       and (if Requires_Confirm (Handle) then Has_Valid_Confirm (Handle))
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         (if Requires_Confirm (Handle)'Old
+          then
+            Has_Valid_Confirm (Handle)
+            and then
+              Postcondition
+                (Request_Reference (Handle).all,
+                 Confirm_Reference (Handle).all));
    --  Process a request, and generate a confirm if one is required.
    --
    --  This procedure passes the request to either Process_Request_No_Confirm
@@ -448,14 +473,27 @@ is
    generic
       with
         procedure Build (Request : Request_Type; Confirm : out Confirm_Type);
+
+      with function Precondition return Boolean is Always_True;
+
+      with
+        function Postcondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        is Always_True;
    procedure Build_Confirm (Handle : in out Service_Handle)
    with
-     Pre  => not Is_Null (Handle) and then Requires_Confirm (Handle),
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition
+       and then Requires_Confirm (Handle),
      Post =>
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
        and Has_Valid_Confirm (Handle)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         Postcondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all);
    --  Builds a confirm primitive.
    --
    --  The confirm primitive is passed to the Build procedure, which writes

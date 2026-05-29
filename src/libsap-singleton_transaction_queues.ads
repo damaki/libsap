@@ -239,6 +239,12 @@ is
    function Has_Valid_Confirm (Handle : Service_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
 
+   function Confirm_Reference
+     (Handle : Service_Handle) return not null access constant Confirm_Type
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle) and then Has_Valid_Confirm (Handle);
+
    procedure Move
      (Target : in out Service_Handle; Source : in out Service_Handle)
    with
@@ -257,15 +263,27 @@ is
    generic
       with
         procedure Build (Request : Request_Type; Confirm : out Confirm_Type);
+
+      with function Precondition return Boolean;
+
+      with
+        function Postcondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
    procedure Build_Confirm (Handle : in out Service_Handle)
    with
-     Pre  => not Is_Null (Handle) and then Requires_Confirm (Handle),
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition
+       and then Requires_Confirm (Handle),
      Post =>
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
        and Has_Valid_Confirm (Handle)
        and (Get_TID (Handle) = Get_TID (Handle)'Old)
-       and (Request_Kind (Handle) = Request_Kind (Handle)'Old);
+       and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
+       and
+         Postcondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all);
 
    ----------------------------
    -- Transaction_Queue_Type --

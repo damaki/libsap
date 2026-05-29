@@ -190,6 +190,14 @@ is
    function Has_Valid_Confirm (Handle : Service_Handle) return Boolean
    is (STQ.Has_Valid_Confirm (Handle.Handle));
 
+   -----------------------
+   -- Confirm_Reference --
+   -----------------------
+
+   function Confirm_Reference
+     (Handle : Service_Handle) return not null access constant Confirm_Type
+   is (STQ.Confirm_Reference (Handle.Handle));
+
    ----------
    -- Move --
    ----------
@@ -319,7 +327,10 @@ is
    procedure Process_Request (Handle : in out Service_Handle) is
 
       procedure Process_Request_With_Confirm_Wrapper is new
-        STQ.Build_Confirm (Process_Request_With_Confirm);
+        STQ.Build_Confirm
+          (Build         => Process_Request_With_Confirm,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
 
       Needs_Confirm : Boolean;
 
@@ -345,7 +356,11 @@ is
    -------------------
 
    procedure Build_Confirm (Handle : in out Service_Handle) is
-      procedure Build_Wrapper is new STQ.Build_Confirm (Build);
+      procedure Build_Wrapper is new
+        STQ.Build_Confirm
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
    begin
       Build_Wrapper (Handle.Handle);
    end Build_Confirm;
