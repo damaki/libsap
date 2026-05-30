@@ -624,6 +624,46 @@ is
    --  or Requires_Response properties on the indication, and this must be
    --  specified in the postcondition for Consume.
 
+   generic
+      with
+        procedure Build
+          (Indication : in out Indication_Type; Response : out Response_Type);
+
+      with
+        function Precondition (Indication : Indication_Type) return Boolean
+        is Always_True;
+
+      with
+        function Postcondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
+   procedure Consume_Indication_And_Build_Response
+     (Handle : in out Service_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then not Indication_Consumed (Handle)
+       and then not Response_Written (Handle)
+       and then Precondition (Indication_Reference (Handle).all)
+       and then Requires_Response (Handle),
+     Post =>
+       not Is_Null (Handle)
+       and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
+       and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
+       and Response_Written (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         Postcondition
+           (Indication_Reference (Handle).all,
+            Response_Reference (Handle).all);
+   --  Build a Response primitive with the ability to consume data from the
+   --  Indication primitive.
+   --
+   --  This is intended for use with primitives that have ownership semantics.
+   --  It allows pointer values in the Indication primitive to be moved
+   --  elsewhere, which requires the ability to write to the request to set the
+   --  pointer to null.
+
 private
 
    package STQ is new

@@ -252,6 +252,22 @@ is
       Consume_Wrapper (Handle.Handle);
    end Consume_Indication;
 
+   -------------------------------------------
+   -- Consume_Indication_And_Build_Response --
+   -------------------------------------------
+
+   procedure Consume_Indication_And_Build_Response
+     (Handle : in out Service_Handle)
+   is
+      procedure Build_Wrapper is new
+        STQ.Consume_Request_And_Build_Confirm
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Build_Wrapper (Handle.Handle);
+   end Consume_Indication_And_Build_Response;
+
    -------------
    -- Release --
    -------------

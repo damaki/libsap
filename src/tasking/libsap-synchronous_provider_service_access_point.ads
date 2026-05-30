@@ -625,6 +625,44 @@ is
    --  or Requires_Confirm properties on the request, and this must be
    --  specified in the postcondition for Consume.
 
+   generic
+      with
+        procedure Build
+          (Request : in out Request_Type; Confirm : out Confirm_Type);
+
+      with
+        function Precondition (Request : Request_Type) return Boolean
+        is Always_True;
+
+      with
+        function Postcondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        is Always_True;
+   procedure Consume_Request_And_Build_Confirm (Handle : in out Service_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then not Request_Consumed (Handle)
+       and then not Confirm_Written (Handle)
+       and then Precondition (Request_Reference (Handle).all)
+       and then Requires_Confirm (Handle),
+     Post =>
+       not Is_Null (Handle)
+       and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
+       and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
+       and Confirm_Written (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         Postcondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all);
+   --  Build a Confirm primitive with the ability to consume data from the
+   --  Request primitive.
+   --
+   --  This is intended for use with primitives that have ownership semantics.
+   --  It allows pointer values in the Request primitive to be moved elsewhere,
+   --  which requires the ability to write to the request to set the pointer
+   --  to null.
+
 private
 
    package STQ is new

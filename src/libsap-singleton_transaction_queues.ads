@@ -420,6 +420,34 @@ is
        and Request_Consumed (Handle)
        and Postcondition (Request_Reference (Handle).all);
 
+   generic
+      with
+        procedure Build
+          (Request : in out Request_Type; Confirm : out Confirm_Type);
+
+      with function Precondition (Request : Request_Type) return Boolean;
+
+      with
+        function Postcondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+   procedure Consume_Request_And_Build_Confirm (Handle : in out Service_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then not Request_Consumed (Handle)
+       and then not Confirm_Written (Handle)
+       and then Precondition (Request_Reference (Handle).all)
+       and then Requires_Confirm (Handle),
+     Post =>
+       not Is_Null (Handle)
+       and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
+       and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
+       and Confirm_Written (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         Postcondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all);
+
    ----------------------------
    -- Transaction_Queue_Type --
    ----------------------------

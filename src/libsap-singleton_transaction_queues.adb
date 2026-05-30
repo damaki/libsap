@@ -220,7 +220,14 @@ is
           then not Confirm_Requires_Cleanup (TD.all.Confirm))
 
        and then
-         (if TD.all.State = Request_Read then Valid_Request (TD.all.Request))
+         (if TD.all.State = Request_Read
+          then
+            Valid_Request (TD.all.Request)
+            and then not Confirm_Requires_Cleanup (TD.all.Confirm))
+
+       and then
+         (if TD.all.State = Request_Consumed
+          then not Confirm_Requires_Cleanup (TD.all.Confirm))
 
        and then
          (if TD.all.State = Confirm_Written
@@ -460,6 +467,39 @@ is
           (Requires_Confirm_Old = Requires_Confirm (Handle.TD.all.Request));
 
    end Consume_Request;
+
+   ---------------------------------------
+   -- Consume_Request_And_Build_Confirm --
+   ---------------------------------------
+
+   procedure Consume_Request_And_Build_Confirm (Handle : in out Service_Handle)
+   is
+      Request_Kind_Old : constant Request_Kind_Type := Request_Kind (Handle)
+      with Ghost;
+
+      Requires_Confirm_Old : constant Boolean := Requires_Confirm (Handle)
+      with Ghost;
+
+      Temp : constant not null access Transaction_Data := Handle.TD;
+   begin
+      Temp.all.State := Confirm_Written;
+      Build (Temp.all.Request, Temp.all.Confirm);
+
+      --  The user-provided Consume function must not change the request Kind
+      --  nor in a way that it no longer requires a confirm.
+      --
+      --  If these assertions cannot be proved, then additional information
+      --  needs to be added to the postcondition of Consume to prove that
+      --  these properties are preserved.
+
+      pragma Assert (Valid_Confirm (Temp.all.Request, Temp.all.Confirm));
+
+      pragma Assert (Request_Kind_Old = Request_Kind (Temp.all.Request));
+
+      pragma
+        Assert (Requires_Confirm_Old = Requires_Confirm (Temp.all.Request));
+
+   end Consume_Request_And_Build_Confirm;
 
    --------------------------
    -- Try_Allocate_Request --
