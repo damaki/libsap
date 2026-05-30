@@ -62,6 +62,22 @@ package body Synchronous_Provider_SAP_Tests is
    function Requires_Confirm (Request : Request_Type) return Boolean
    is (Request.Kind = REQ_1);
 
+   function Request_Requires_Cleanup
+     (Request : Request_Type with Unreferenced) return Boolean
+   is (False);
+
+   function Confirm_Requires_Cleanup
+     (Confirm : Confirm_Type with Unreferenced) return Boolean
+   is (False);
+
+   function Might_Require_Cleanup
+     (Kind : Request_Kind with Unreferenced) return Boolean
+   is (False);
+
+   function Valid_Request
+     (Request : Request_Type with Unreferenced) return Boolean
+   is (True);
+
    function Valid_Confirm
      (Request : Request_Type; Confirm : Confirm_Type with Unreferenced)
       return Boolean
@@ -75,14 +91,18 @@ package body Synchronous_Provider_SAP_Tests is
 
    package Test_One_Normal_Transaction_SAP is new
      LibSAP.Synchronous_Provider_Service_Access_Point
-       (Request_Kind_Type => Request_Kind,
-        Request_Type      => Request_Type,
-        Confirm_Type      => Confirm_Type,
-        Queue_Capacity    => 3,
-        Priority          => System.Priority'Last,
-        Request_Kind      => Get_Request_Kind,
-        Requires_Confirm  => Requires_Confirm,
-        Valid_Confirm     => Valid_Confirm);
+       (Request_Kind_Type        => Request_Kind,
+        Request_Type             => Request_Type,
+        Confirm_Type             => Confirm_Type,
+        Queue_Capacity           => 3,
+        Priority                 => System.Priority'Last,
+        Request_Kind             => Get_Request_Kind,
+        Requires_Confirm         => Requires_Confirm,
+        Request_Requires_Cleanup => Request_Requires_Cleanup,
+        Confirm_Requires_Cleanup => Confirm_Requires_Cleanup,
+        Might_Require_Cleanup    => Might_Require_Cleanup,
+        Valid_Request            => Valid_Request,
+        Valid_Confirm            => Valid_Confirm);
 
    procedure Test_One_Normal_Transaction (T : in out Test) is
       package SAP renames Test_One_Normal_Transaction_SAP;
@@ -159,14 +179,18 @@ package body Synchronous_Provider_SAP_Tests is
 
    package Test_Discard_Before_Confirm_Sent_SAP is new
      LibSAP.Synchronous_Provider_Service_Access_Point
-       (Request_Kind_Type => Request_Kind,
-        Request_Type      => Request_Type,
-        Confirm_Type      => Confirm_Type,
-        Queue_Capacity    => 3,
-        Priority          => System.Priority'Last,
-        Request_Kind      => Get_Request_Kind,
-        Requires_Confirm  => Requires_Confirm,
-        Valid_Confirm     => Valid_Confirm);
+       (Request_Kind_Type        => Request_Kind,
+        Request_Type             => Request_Type,
+        Confirm_Type             => Confirm_Type,
+        Queue_Capacity           => 3,
+        Priority                 => System.Priority'Last,
+        Request_Kind             => Get_Request_Kind,
+        Requires_Confirm         => Requires_Confirm,
+        Request_Requires_Cleanup => Request_Requires_Cleanup,
+        Confirm_Requires_Cleanup => Confirm_Requires_Cleanup,
+        Might_Require_Cleanup    => Might_Require_Cleanup,
+        Valid_Request            => Valid_Request,
+        Valid_Confirm            => Valid_Confirm);
 
    procedure Test_Discard_Before_Confirm_Sent (T : in out Test) is
       package SAP renames Test_Discard_Before_Confirm_Sent_SAP;
@@ -270,14 +294,18 @@ package body Synchronous_Provider_SAP_Tests is
 
    package Test_Discard_After_Confirm_Sent_SAP is new
      LibSAP.Synchronous_Provider_Service_Access_Point
-       (Request_Kind_Type => Request_Kind,
-        Request_Type      => Request_Type,
-        Confirm_Type      => Confirm_Type,
-        Queue_Capacity    => 3,
-        Priority          => System.Priority'Last,
-        Request_Kind      => Get_Request_Kind,
-        Requires_Confirm  => Requires_Confirm,
-        Valid_Confirm     => Valid_Confirm);
+       (Request_Kind_Type        => Request_Kind,
+        Request_Type             => Request_Type,
+        Confirm_Type             => Confirm_Type,
+        Queue_Capacity           => 3,
+        Priority                 => System.Priority'Last,
+        Request_Kind             => Get_Request_Kind,
+        Requires_Confirm         => Requires_Confirm,
+        Request_Requires_Cleanup => Request_Requires_Cleanup,
+        Confirm_Requires_Cleanup => Confirm_Requires_Cleanup,
+        Might_Require_Cleanup    => Might_Require_Cleanup,
+        Valid_Request            => Valid_Request,
+        Valid_Confirm            => Valid_Confirm);
 
    procedure Test_Discard_After_Confirm_Sent (T : in out Test) is
       package SAP renames Test_Discard_After_Confirm_Sent_SAP;

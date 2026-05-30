@@ -35,6 +35,17 @@ private generic
    --  Returns true if the Request requires a confirm primitive to be sent in
    --  response.
 
+   with
+     function Request_Requires_Cleanup (Request : Request_Type) return Boolean;
+
+   with
+     function Confirm_Requires_Cleanup (Confirm : Confirm_Type) return Boolean;
+
+   with
+     function Might_Require_Cleanup (Kind : Request_Kind_Type) return Boolean;
+   --  Returns True if a Request OR Confirm primitive of this kind might
+   --  require cleanup before they are freed at the end of a transaction.
+
    with function Valid_Request (Request : Request_Type) return Boolean;
    --  Returns True if the Request contains a valid request.
 
@@ -48,6 +59,60 @@ package LibSAP.Singleton_Transaction_Queues with
 is
 
    subtype Transaction_ID is Positive range 1 .. Queue_Capacity;
+
+   package Parameter_Checks
+     with Ghost
+   is
+
+      --  Check the relationship between Request_Requires_Cleanup and
+      --  Might_Require_Cleanup for Request primitives.
+      --
+      --  If a request kind never requires cleanup, then
+      --  Request_Requires_Cleanup must always return false for all requests of
+      --  that kind.
+      --
+      --  If a request object requires cleanup, then Might_Require_Cleanup
+      --  must return True for that kind of request.
+
+      procedure Request_Cleanup_Implied (Request : Request_Type)
+      with
+        Post =>
+          (if Request_Requires_Cleanup (Request)
+           then Might_Require_Cleanup (Request_Kind (Request)));
+
+      procedure Request_No_Cleanup_Implied (Request : Request_Type)
+      with
+        Post =>
+          (if not Might_Require_Cleanup (Request_Kind (Request))
+           then not Request_Requires_Cleanup (Request));
+
+      --  Check the relationship between Confirm_Requires_Cleanup and
+      --  Might_Require_Cleanup for Confirm primitives.
+      --
+      --  If a request kind never requires cleanup, then
+      --  Confirm_Requires_Cleanup must always return false for all
+      --  confirmations of that kind.
+      --
+      --  If a confirm object requires cleanup, then Might_Require_Cleanup
+      --  must return True for that kind.
+
+      procedure Confirm_Cleanup_Implied
+        (Request : Request_Type; Confirm : Confirm_Type)
+      with
+        Pre  => Valid_Confirm (Request, Confirm),
+        Post =>
+          (if Confirm_Requires_Cleanup (Confirm)
+           then Might_Require_Cleanup (Request_Kind (Request)));
+
+      procedure Confirm_No_Cleanup_Implied
+        (Request : Request_Type; Confirm : Confirm_Type)
+      with
+        Pre  => Valid_Confirm (Request, Confirm),
+        Post =>
+          (if not Might_Require_Cleanup (Request_Kind (Request))
+           then not Confirm_Requires_Cleanup (Confirm));
+
+   end Parameter_Checks;
 
    ---------------------
    -- Request Handles --
@@ -183,13 +248,7 @@ is
 
    function Confirm_Reference
      (Handle : Confirm_Handle) return not null access constant Confirm_Type
-   with
-     Inline,
-     Global => null,
-     Pre    => not Is_Null (Handle),
-     Post   =>
-       Valid_Confirm
-         (Request_Reference (Handle).all, Confirm_Reference'Result.all);
+   with Inline, Global => null, Pre => not Is_Null (Handle);
 
    function Request_Kind (Handle : Confirm_Handle) return Request_Kind_Type
    with
@@ -197,6 +256,15 @@ is
      Pre    => not Is_Null (Handle),
      Post   =>
        Request_Kind'Result = Request_Kind (Request_Reference (Handle).all);
+
+   function Requires_Cleanup (Handle : Confirm_Handle) return Boolean
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Requires_Cleanup'Result
+       = (Request_Requires_Cleanup (Request_Reference (Handle).all)
+          or else Confirm_Requires_Cleanup (Confirm_Reference (Handle).all));
 
    procedure Move
      (Target : in out Confirm_Handle; Source : in out Confirm_Handle)
@@ -208,6 +276,26 @@ is
        (Is_Null (Target) = Is_Null (Source)'Old)
        and Is_Null (Source)
        and (Request_Kind (Target) = Request_Kind (Source)'Old);
+
+   generic
+      with
+        procedure Clean
+          (Request : in out Request_Type; Confirm : in out Confirm_Type);
+
+      with function Precondition return Boolean;
+
+      with
+        function Postcondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+   procedure Cleanup (Handle : in out Confirm_Handle)
+   with
+     Inline,
+     Global => null,
+     Pre    => Precondition,
+     Post   =>
+       Postcondition
+         (Request_Reference (Handle).all, Confirm_Reference (Handle).all)
+       and then not Request_Requires_Cleanup (Request_Reference (Handle).all);
 
    ---------------------
    -- Service Handles --
@@ -347,7 +435,12 @@ is
    with
      Global => (In_Out => Transaction_Pool),
      Pre    => Is_Null (Handle),
-     Post   => (if not Is_Null (Handle) then not Request_Written (Handle));
+     Post   =>
+       (if not Is_Null (Handle)
+        then
+          not Request_Written (Handle)
+          and then
+            not Request_Requires_Cleanup (Request_Reference (Handle).all));
 
    procedure Abort_Request (Handle : in out Request_Handle)
    with
@@ -374,7 +467,10 @@ is
         others                    => Is_Null (Promise));
 
    procedure Discard (Promise : in out Confirm_Promise)
-   with Global => (In_Out => Transaction_Pool), Post => Is_Null (Promise);
+   with
+     Global => (In_Out => Transaction_Pool),
+     Pre    => not Might_Require_Cleanup (Request_Kind (Promise)),
+     Post   => Is_Null (Promise);
 
    procedure Try_Get_Confirm
      (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise)
@@ -393,19 +489,28 @@ is
          (if not Is_Null (Handle)
           then Request_Kind (Handle)
           else Request_Kind (Promise))
-         = Request_Kind (Promise)'Old;
+         = Request_Kind (Promise)'Old
+       and
+         (if not Is_Null (Handle)
+          then
+            Valid_Confirm
+              (Request_Reference (Handle).all,
+               Confirm_Reference (Handle).all));
 
    procedure Release (Handle : in out Confirm_Handle)
    with
      Global => (In_Out => Transaction_Pool),
-     Pre    => not Is_Null (Handle),
+     Pre    => not Is_Null (Handle) and then not Requires_Cleanup (Handle),
      Post   => Is_Null (Handle);
 
    procedure New_Request
      (Cfm_Handle : in out Confirm_Handle; Req_Handle : in out Request_Handle)
    with
      Global => null,
-     Pre    => not Is_Null (Cfm_Handle) and then Is_Null (Req_Handle),
+     Pre    =>
+       not Is_Null (Cfm_Handle)
+       and then Is_Null (Req_Handle)
+       and then not Requires_Cleanup (Cfm_Handle),
      Post   =>
        not Is_Null (Req_Handle)
        and Is_Null (Cfm_Handle)

@@ -94,6 +94,20 @@ is
       STQ.Move (Target => Target.Handle, Source => Source.Handle);
    end Move;
 
+   -------------
+   -- Cleanup --
+   -------------
+
+   procedure Cleanup (Handle : in out Confirm_Handle) is
+      procedure Cleanup_Wrapper is new
+        STQ.Cleanup
+          (Clean         => Clean,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Cleanup_Wrapper (Handle.Handle);
+   end Cleanup;
+
    -------------------
    -- Abort_Request --
    -------------------

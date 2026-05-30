@@ -51,7 +51,13 @@ is
        (if Free_Transaction_Data_Access /= null
         then
           Free_Transaction_Data_Access.all.State = Free
-          and then Free_Transaction_Data_Access.all.Cfm_Token /= null);
+          and then Free_Transaction_Data_Access.all.Cfm_Token /= null
+          and then
+            not Request_Requires_Cleanup
+                  (Free_Transaction_Data_Access.all.Request)
+          and then
+            not Confirm_Requires_Cleanup
+                  (Free_Transaction_Data_Access.all.Confirm));
 
    package Free_Pool is new
      LibSAP.Pointer_Holders
@@ -124,6 +130,52 @@ is
 
    procedure Resolve_Discarded_Promise (ID : Transaction_ID);
 
+   ----------------------
+   -- Parameter_Checks --
+   ----------------------
+
+   package body Parameter_Checks is
+
+      ---------------------
+      -- Cleanup_Implied --
+      ---------------------
+
+      procedure Request_Cleanup_Implied (Request : Request_Type) is
+      begin
+         null;
+      end Request_Cleanup_Implied;
+
+      ------------------------
+      -- No_Cleanup_Implied --
+      ------------------------
+
+      procedure Request_No_Cleanup_Implied (Request : Request_Type) is
+      begin
+         null;
+      end Request_No_Cleanup_Implied;
+
+      -----------------------------
+      -- Confirm_Cleanup_Implied --
+      -----------------------------
+
+      procedure Confirm_Cleanup_Implied
+        (Request : Request_Type; Confirm : Confirm_Type) is
+      begin
+         null;
+      end Confirm_Cleanup_Implied;
+
+      --------------------------------
+      -- Confirm_No_Cleanup_Implied --
+      --------------------------------
+
+      procedure Confirm_No_Cleanup_Implied
+        (Request : Request_Type; Confirm : Confirm_Type) is
+      begin
+         null;
+      end Confirm_No_Cleanup_Implied;
+
+   end Parameter_Checks;
+
    -------------------------------
    -- Pending_Request_Predicate --
    -------------------------------
@@ -132,6 +184,7 @@ is
      (TD : not null Transaction_Data_Access) return Boolean
    is (TD.all.State = Request_Pending
        and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request)
+       and then not Confirm_Requires_Cleanup (TD.all.Confirm)
        and then Valid_Request (TD.all.Request));
 
    ------------------------------
@@ -142,6 +195,7 @@ is
      (TD : not null Transaction_Data_Access) return Boolean
    is (TD.all.State in Request_Allocated | Request_Written
        and then TD.all.Cfm_Token /= null
+       and then not Confirm_Requires_Cleanup (TD.all.Confirm)
        and then
          (if TD.all.State = Request_Written
           then Valid_Request (TD.all.Request)));
@@ -156,6 +210,10 @@ is
    is (TD.all.State in Request_Read | Request_Consumed | Confirm_Written
 
        and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request)
+
+       and then
+         (if not Requires_Confirm (TD.all.Request)
+          then not Confirm_Requires_Cleanup (TD.all.Confirm))
 
        and then
          (if TD.all.State = Request_Read then Valid_Request (TD.all.Request))
@@ -217,6 +275,14 @@ is
 
    function Request_Kind (Handle : Service_Handle) return Request_Kind_Type
    is (Request_Kind (Handle.TD.all.Request));
+
+   ----------------------
+   -- Requires_Cleanup --
+   ----------------------
+
+   function Requires_Cleanup (Handle : Confirm_Handle) return Boolean
+   is (Request_Requires_Cleanup (Handle.TD.all.Request)
+       or else Confirm_Requires_Cleanup (Handle.TD.all.Confirm));
 
    -----------------------
    -- Request_Reference --
@@ -331,6 +397,15 @@ is
       Target.TD := Source.TD;
       Source.TD := null;
    end Move;
+
+   -------------
+   -- Cleanup --
+   -------------
+
+   procedure Cleanup (Handle : in out Confirm_Handle) is
+   begin
+      Clean (Handle.TD.all.Request, Handle.TD.all.Confirm);
+   end Cleanup;
 
    -------------------
    -- Build_Confirm --
@@ -785,6 +860,20 @@ is
 
             if Promise_Ptr = null then
                raise Program_Error;
+            end if;
+
+            --  Confirm Promises can only be discarded if they never require
+            --  cleanup (see precondition of Discard), so it is not possible
+            --  to acquire a transaction that requires cleanup here.
+
+            pragma
+              Assume
+                (not Might_Require_Cleanup
+                       (Request_Kind (Pending_Ptr.all.Request)));
+
+            if Requires_Confirm (Pending_Ptr.all.Request) then
+               Parameter_Checks.Confirm_No_Cleanup_Implied
+                 (Pending_Ptr.all.Request, Pending_Ptr.all.Confirm);
             end if;
 
             Temp := Transaction_Data_Access (Pending_Ptr);

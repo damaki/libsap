@@ -25,6 +25,20 @@ generic
    --  primitive.
 
    with
+     function Indication_Requires_Cleanup
+       (Indication : Indication_Type) return Boolean;
+
+   with
+     function Response_Requires_Cleanup
+       (Response : Response_Type) return Boolean;
+
+   with
+     function Might_Require_Cleanup
+       (Kind : Indication_Kind_Type) return Boolean;
+   --  Returns True if a Indication OR Response primitive of this kind might
+   --  require cleanup before they are freed at the end of a transaction.
+
+   with
      function Valid_Indication (Indication : Indication_Type) return Boolean;
    --  Returns True if the Indication object is valid
 
@@ -197,13 +211,7 @@ is
 
    function Response_Reference
      (Handle : Response_Handle) return not null access constant Response_Type
-   with
-     Inline,
-     Global => null,
-     Pre    => not Is_Null (Handle),
-     Post   =>
-       Valid_Response
-         (Indication_Reference (Handle).all, Response_Reference'Result.all);
+   with Inline, Global => null, Pre => not Is_Null (Handle);
 
    function Indication_Kind
      (Handle : Response_Handle) return Indication_Kind_Type
@@ -213,6 +221,15 @@ is
      Post   =>
        Indication_Kind'Result
        = Indication_Kind (Indication_Reference (Handle).all);
+
+   function Requires_Cleanup (Handle : Response_Handle) return Boolean
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Requires_Cleanup'Result
+       = (Indication_Requires_Cleanup (Indication_Reference (Handle).all)
+          or else Response_Requires_Cleanup (Response_Reference (Handle).all));
 
    procedure Move
      (Target : in out Response_Handle; Source : in out Response_Handle)
@@ -224,6 +241,29 @@ is
        (Is_Null (Target) = Is_Null (Source)'Old)
        and Is_Null (Source)
        and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
+
+   generic
+      with
+        procedure Clean
+          (Indication : in out Indication_Type;
+           Response   : in out Response_Type);
+
+      with function Precondition return Boolean is Always_True;
+
+      with
+        function Postcondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
+   procedure Cleanup (Handle : in out Response_Handle)
+   with
+     Inline,
+     Global => null,
+     Pre    => Precondition,
+     Post   =>
+       Postcondition
+         (Indication_Reference (Handle).all, Response_Reference (Handle).all)
+       and then
+         not Indication_Requires_Cleanup (Indication_Reference (Handle).all);
 
    ---------------------
    -- Service Handles --
@@ -297,7 +337,13 @@ is
      Inline,
      Global => (In_Out => Transaction_Pool),
      Pre    => Is_Null (Handle),
-     Post   => (if not Is_Null (Handle) then not Indication_Written (Handle));
+     Post   =>
+       (if not Is_Null (Handle)
+        then
+          not Indication_Written (Handle)
+          and then
+            not Indication_Requires_Cleanup
+                  (Indication_Reference (Handle).all));
    --  Try to allocate a new indication object.
    --
    --  If there is enough free resources for a new transaction, then one is
@@ -343,6 +389,7 @@ is
    with
      Inline,
      Global => (In_Out => Transaction_Pool),
+     Pre    => not Might_Require_Cleanup (Indication_Kind (Promise)),
      Post   => Is_Null (Promise);
    --  Discard a response promise.
    --
@@ -371,7 +418,13 @@ is
          (if not Is_Null (Handle)
           then Indication_Kind (Handle)
           else Indication_Kind (Promise))
-         = Indication_Kind (Promise)'Old;
+         = Indication_Kind (Promise)'Old
+       and
+         (if not Is_Null (Handle)
+          then
+            Valid_Response
+              (Indication_Reference (Handle).all,
+               Response_Reference (Handle).all));
    --  Try to get the pending response primitive from a Promise.
    --
    --  If the pending response primitive has been sent by the Service User,
@@ -560,14 +613,17 @@ private
 
    package STQ is new
      LibSAP.Singleton_Transaction_Queues
-       (Request_Kind_Type => Indication_Kind_Type,
-        Request_Type      => Indication_Type,
-        Confirm_Type      => Response_Type,
-        Queue_Capacity    => Queue_Capacity,
-        Request_Kind      => Indication_Kind,
-        Requires_Confirm  => Requires_Response,
-        Valid_Request     => Valid_Indication,
-        Valid_Confirm     => Valid_Response);
+       (Request_Kind_Type        => Indication_Kind_Type,
+        Request_Type             => Indication_Type,
+        Confirm_Type             => Response_Type,
+        Queue_Capacity           => Queue_Capacity,
+        Request_Kind             => Indication_Kind,
+        Requires_Confirm         => Requires_Response,
+        Request_Requires_Cleanup => Indication_Requires_Cleanup,
+        Confirm_Requires_Cleanup => Response_Requires_Cleanup,
+        Might_Require_Cleanup    => Might_Require_Cleanup,
+        Valid_Request            => Valid_Indication,
+        Valid_Confirm            => Valid_Response);
    pragma Part_Of (Transaction_Pool);
 
    type Indication_Handle is limited record
@@ -637,6 +693,13 @@ private
    function Indication_Kind
      (Handle : Service_Handle) return Indication_Kind_Type
    is (STQ.Request_Kind (Handle.Handle));
+
+   ----------------------
+   -- Requires_Cleanup --
+   ----------------------
+
+   function Requires_Cleanup (Handle : Response_Handle) return Boolean
+   is (STQ.Requires_Cleanup (Handle.Handle));
 
    ------------------------
    -- Indication_Written --

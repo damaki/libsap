@@ -22,6 +22,17 @@ generic
    --  Returns true if the Request requires a confirm primitive to be sent in
    --  response.
 
+   with
+     function Request_Requires_Cleanup (Request : Request_Type) return Boolean;
+
+   with
+     function Confirm_Requires_Cleanup (Confirm : Confirm_Type) return Boolean;
+
+   with
+     function Might_Require_Cleanup (Kind : Request_Kind_Type) return Boolean;
+   --  Returns True if a Request OR Confirm primitive of this kind might
+   --  require cleanup before they are freed at the end of a transaction.
+
    with function Valid_Request (Request : Request_Type) return Boolean;
    --  Returns True if the Request object is valid
 
@@ -190,13 +201,7 @@ is
 
    function Confirm_Reference
      (Handle : Confirm_Handle) return not null access constant Confirm_Type
-   with
-     Inline,
-     Global => null,
-     Pre    => not Is_Null (Handle),
-     Post   =>
-       Valid_Confirm
-         (Request_Reference (Handle).all, Confirm_Reference'Result.all);
+   with Inline, Global => null, Pre => not Is_Null (Handle);
 
    function Request_Kind (Handle : Confirm_Handle) return Request_Kind_Type
    with
@@ -204,6 +209,15 @@ is
      Pre    => not Is_Null (Handle),
      Post   =>
        Request_Kind'Result = Request_Kind (Request_Reference (Handle).all);
+
+   function Requires_Cleanup (Handle : Confirm_Handle) return Boolean
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Requires_Cleanup'Result
+       = (Request_Requires_Cleanup (Request_Reference (Handle).all)
+          or else Confirm_Requires_Cleanup (Confirm_Reference (Handle).all));
 
    procedure Move
      (Target : in out Confirm_Handle; Source : in out Confirm_Handle)
@@ -215,6 +229,27 @@ is
        (Is_Null (Target) = Is_Null (Source)'Old)
        and Is_Null (Source)
        and (Request_Kind (Target) = Request_Kind (Source)'Old);
+
+   generic
+      with
+        procedure Clean
+          (Request : in out Request_Type; Confirm : in out Confirm_Type);
+
+      with function Precondition return Boolean is Always_True;
+
+      with
+        function Postcondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        is Always_True;
+   procedure Cleanup (Handle : in out Confirm_Handle)
+   with
+     Inline,
+     Global => null,
+     Pre    => Precondition,
+     Post   =>
+       Postcondition
+         (Request_Reference (Handle).all, Confirm_Reference (Handle).all)
+       and then not Request_Requires_Cleanup (Request_Reference (Handle).all);
 
    ---------------------
    -- Service Handles --
@@ -286,7 +321,12 @@ is
      Inline,
      Global => (In_Out => Transaction_Pool),
      Pre    => Is_Null (Handle),
-     Post   => (if not Is_Null (Handle) then not Request_Written (Handle));
+     Post   =>
+       (if not Is_Null (Handle)
+        then
+          not Request_Written (Handle)
+          and then
+            not Request_Requires_Cleanup (Request_Reference (Handle).all));
    --  Try to allocate a new request object.
    --
    --  If there is enough free resources for a new transaction, then one is
@@ -326,6 +366,7 @@ is
    with
      Inline,
      Global => (In_Out => Transaction_Pool),
+     Pre    => not Might_Require_Cleanup (Request_Kind (Promise)),
      Post   => Is_Null (Promise);
    --  Discard a confirm promise.
    --
@@ -354,7 +395,13 @@ is
          (if not Is_Null (Handle)
           then Request_Kind (Handle)
           else Request_Kind (Promise))
-         = Request_Kind (Promise)'Old;
+         = Request_Kind (Promise)'Old
+       and
+         (if not Is_Null (Handle)
+          then
+            Valid_Confirm
+              (Request_Reference (Handle).all,
+               Confirm_Reference (Handle).all));
    --  Try to get the pending confirm primitive from a Promise.
    --
    --  If the pending confirm primitive has been sent by the Service Provider,
@@ -528,14 +575,17 @@ private
 
    package STQ is new
      LibSAP.Singleton_Transaction_Queues
-       (Request_Kind_Type => Request_Kind_Type,
-        Request_Type      => Request_Type,
-        Confirm_Type      => Confirm_Type,
-        Queue_Capacity    => Queue_Capacity,
-        Request_Kind      => Request_Kind,
-        Requires_Confirm  => Requires_Confirm,
-        Valid_Request     => Valid_Request,
-        Valid_Confirm     => Valid_Confirm);
+       (Request_Kind_Type        => Request_Kind_Type,
+        Request_Type             => Request_Type,
+        Confirm_Type             => Confirm_Type,
+        Queue_Capacity           => Queue_Capacity,
+        Request_Kind             => Request_Kind,
+        Requires_Confirm         => Requires_Confirm,
+        Request_Requires_Cleanup => Request_Requires_Cleanup,
+        Confirm_Requires_Cleanup => Confirm_Requires_Cleanup,
+        Might_Require_Cleanup    => Might_Require_Cleanup,
+        Valid_Request            => Valid_Request,
+        Valid_Confirm            => Valid_Confirm);
    pragma Part_Of (Transaction_Pool);
 
    type Request_Handle is limited record
@@ -601,6 +651,13 @@ private
 
    function Request_Kind (Handle : Service_Handle) return Request_Kind_Type
    is (STQ.Request_Kind (Handle.Handle));
+
+   ----------------------
+   -- Requires_Cleanup --
+   ----------------------
+
+   function Requires_Cleanup (Handle : Confirm_Handle) return Boolean
+   is (STQ.Requires_Cleanup (Handle.Handle));
 
    ---------------------
    -- Request_Written --
