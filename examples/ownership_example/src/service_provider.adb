@@ -194,9 +194,10 @@ is
       ---------------------
 
       procedure Extract_Pointer
-        (Indication : in out Indication_Type; Response : in out Response_Type)
+        (Indication : in out Indication_Type with Unreferenced;
+         Response   : in out Response_Type)
       is
-         pragma Unreferenced (Indication);
+         pragma Unmodified (Indication);
       begin
          Data := Response.DATA_Res.Data;
          Response.DATA_Res.Data := null;
