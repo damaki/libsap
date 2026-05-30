@@ -51,12 +51,12 @@ is
    function Requires_Confirm (Handle : Service_Handle) return Boolean
    is (STQ.Requires_Confirm (Handle.Handle));
 
-   ----------------------
-   -- Request_Complete --
-   ----------------------
+   ---------------------
+   -- Confirm_Written --
+   ---------------------
 
-   function Request_Complete (Handle : Service_Handle) return Boolean
-   is (STQ.Request_Complete (Handle.Handle));
+   function Confirm_Written (Handle : Service_Handle) return Boolean
+   is (STQ.Confirm_Written (Handle.Handle));
 
    -----------------------
    -- Confirm_Reference --
@@ -222,6 +222,20 @@ is
    begin
       Build_Wrapper (Handle.Handle);
    end Build_Confirm;
+
+   ---------------------
+   -- Consume_Request --
+   ---------------------
+
+   procedure Consume_Request (Handle : in out Service_Handle) is
+      procedure Consume_Wrapper is new
+        STQ.Consume_Request
+          (Consume       => Consume,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Consume_Wrapper (Handle.Handle);
+   end Consume_Request;
 
    -------------
    -- Release --

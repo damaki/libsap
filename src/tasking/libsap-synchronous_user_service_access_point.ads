@@ -263,7 +263,10 @@ is
        Requires_Response'Result
        = Requires_Response (Indication_Reference (Handle).all);
 
-   function Indication_Complete (Handle : Service_Handle) return Boolean
+   function Indication_Consumed (Handle : Service_Handle) return Boolean
+   with Global => null, Pre => not Is_Null (Handle);
+
+   function Response_Written (Handle : Service_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
 
    function Response_Reference
@@ -272,7 +275,7 @@ is
      Global => null,
      Pre    =>
        not Is_Null (Handle)
-       and then Indication_Complete (Handle)
+       and then Response_Written (Handle)
        and then Requires_Response (Handle);
 
    procedure Move
@@ -285,7 +288,8 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Response (Target) = Requires_Response (Source)'Old)
-       and (Indication_Complete (Target) = Indication_Complete (Source)'Old)
+       and (Response_Written (Target) = Response_Written (Source)'Old)
+       and (Indication_Consumed (Target) = Indication_Consumed (Source)'Old)
        and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
 
    ---------------------------------
@@ -426,7 +430,8 @@ is
      Post   =>
        not Is_Null (Handle)
        and then Valid_Indication (Indication_Reference (Handle).all)
-       and then not Indication_Complete (Handle);
+       and then not Response_Written (Handle)
+       and then not Indication_Consumed (Handle);
    --  Wait for an indication from a Service Provider.
    --
    --  This is a potentially blocking operation.
@@ -439,7 +444,8 @@ is
        (if not Is_Null (Handle)
         then
           Valid_Indication (Indication_Reference (Handle).all)
-          and then not Indication_Complete (Handle));
+          and then not Response_Written (Handle)
+          and then not Indication_Consumed (Handle));
    --  Get the next indication from a Service Provider, if one is currently
    --  pending.
    --
@@ -463,7 +469,7 @@ is
      Global => (In_Out => Transaction_Queue),
      Pre    =>
        not Is_Null (Handle)
-       and then Indication_Complete (Handle)
+       and then Response_Written (Handle)
        and then Requires_Response (Handle),
      Post   => Is_Null (Handle);
    --  Send a response primitive to a Service Provider.
@@ -499,7 +505,7 @@ is
        and
          (if Requires_Response (Handle)'Old
           then
-            Indication_Complete (Handle)
+            Response_Written (Handle)
             and then
               Postcondition
                 (Indication_Reference (Handle).all,
@@ -531,7 +537,7 @@ is
        not Is_Null (Handle)
        and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
        and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
-       and Indication_Complete (Handle)
+       and Response_Written (Handle)
        and (Get_TID (Handle) = Get_TID (Handle)'Old)
        and
          Postcondition
@@ -541,6 +547,34 @@ is
    --
    --  The response primitive is passed to the Build procedure, which writes
    --  to it.
+
+   generic
+      with procedure Consume (Indication : in out Indication_Type);
+      with function Precondition return Boolean;
+      with
+        function Postcondition (Indication : Indication_Type) return Boolean;
+   procedure Consume_Indication (Handle : in out Service_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then not Indication_Consumed (Handle)
+       and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
+       and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
+       and Indication_Consumed (Handle)
+       and Postcondition (Indication_Reference (Handle).all);
+   --  Modify an indication object.
+   --
+   --  The purpose of this procedure is to provide a way to "consume" data from
+   --  the indication object by modifying some fields of the indication.
+   --  For example, to take ownership over a pointer field in the indication,
+   --  which requires setting it to null in the process.
+   --
+   --  The Consume general formal procedure must not modify the Indication_Kind
+   --  or Requires_Response properties on the indication, and this must be
+   --  specified in the postcondition for Consume.
 
 private
 
@@ -630,5 +664,19 @@ private
 
    function Indication_Written (Handle : Indication_Handle) return Boolean
    is (STQ.Request_Written (Handle.Handle));
+
+   ----------------------
+   -- Response_Written --
+   ----------------------
+
+   function Response_Written (Handle : Service_Handle) return Boolean
+   is (STQ.Confirm_Written (Handle.Handle));
+
+   -------------------------
+   -- Indication_Consumed --
+   -------------------------
+
+   function Indication_Consumed (Handle : Service_Handle) return Boolean
+   is (STQ.Request_Consumed (Handle.Handle));
 
 end LibSAP.Synchronous_User_Service_Access_Point;

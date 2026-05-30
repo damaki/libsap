@@ -52,12 +52,12 @@ is
    function Requires_Response (Handle : Service_Handle) return Boolean
    is (STQ.Requires_Confirm (Handle.Handle));
 
-   -------------------------
-   -- Indication_Complete --
-   -------------------------
+   ----------------------
+   -- Response_Written --
+   ----------------------
 
-   function Indication_Complete (Handle : Service_Handle) return Boolean
-   is (STQ.Request_Complete (Handle.Handle));
+   function Response_Written (Handle : Service_Handle) return Boolean
+   is (STQ.Confirm_Written (Handle.Handle));
 
    ------------------------
    -- Response_Reference --
@@ -223,6 +223,20 @@ is
    begin
       Build_Wrapper (Handle.Handle);
    end Build_Response;
+
+   ------------------------
+   -- Consume_Indication --
+   ------------------------
+
+   procedure Consume_Indication (Handle : in out Service_Handle) is
+      procedure Consume_Wrapper is new
+        STQ.Consume_Request
+          (Consume       => Consume,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Consume_Wrapper (Handle.Handle);
+   end Consume_Indication;
 
    -------------
    -- Release --

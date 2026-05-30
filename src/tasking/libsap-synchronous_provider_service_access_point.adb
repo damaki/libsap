@@ -54,7 +54,8 @@ is
         Post =>
           not STQ.Is_Null (Handle)
           and then Valid_Request (STQ.Request_Reference (Handle).all)
-          and then not STQ.Request_Complete (Handle);
+          and then not STQ.Confirm_Written (Handle)
+          and then not STQ.Request_Consumed (Handle);
 
       procedure Try_Get_Next_Request (Handle : in out STQ.Service_Handle)
       with
@@ -63,7 +64,8 @@ is
           (if not STQ.Is_Null (Handle)
            then
              Valid_Request (STQ.Request_Reference (Handle).all)
-             and then not STQ.Request_Complete (Handle));
+             and then not STQ.Confirm_Written (Handle)
+             and then not STQ.Request_Consumed (Handle));
 
    private
 
@@ -118,7 +120,8 @@ is
            Post =>
              Is_Valid (HD)
              and then not STQ.Is_Null (Handle)
-             and then not STQ.Request_Complete (Handle);
+             and then not STQ.Confirm_Written (Handle)
+             and then not STQ.Request_Consumed (Handle);
 
          procedure Wrapper (HD : in out Holder_Data) is
          begin
@@ -148,7 +151,9 @@ is
              Is_Valid (HD)
              and then
                (if not STQ.Is_Null (Handle)
-                then not STQ.Request_Complete (Handle));
+                then
+                  not STQ.Confirm_Written (Handle)
+                  and then not STQ.Request_Consumed (Handle));
 
          procedure Wrapper (HD : in out Holder_Data) is
          begin
@@ -375,6 +380,20 @@ is
    begin
       Build_Wrapper (Handle.Handle);
    end Build_Confirm;
+
+   ---------------------
+   -- Consume_Request --
+   ---------------------
+
+   procedure Consume_Request (Handle : in out Service_Handle) is
+      procedure Consume_Wrapper is new
+        STQ.Consume_Request
+          (Consume       => Consume,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Consume_Wrapper (Handle.Handle);
+   end Consume_Request;
 
    -------------
    -- Release --

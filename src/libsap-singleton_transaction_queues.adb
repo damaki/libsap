@@ -23,7 +23,7 @@ is
       Request_Written,
       Request_Pending,
       Request_Read,
-      Request_Complete,
+      Request_Consumed,
       Confirm_Written,
       Confirm_Pending,
       Confirm_Read);
@@ -153,7 +153,7 @@ is
    function Service_Handle_Predicate
      (TD                 : not null Transaction_Data_Access;
       Fixed_Request_Kind : Request_Kind_Type) return Boolean
-   is (TD.all.State in Request_Read | Request_Complete | Confirm_Written
+   is (TD.all.State in Request_Read | Request_Consumed | Confirm_Written
 
        and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request)
 
@@ -165,10 +165,6 @@ is
           then
             Requires_Confirm (TD.all.Request)
             and then Valid_Confirm (TD.all.Request, TD.all.Confirm))
-
-       and then
-         (if TD.all.State = Request_Complete
-          then not Requires_Confirm (TD.all.Request))
 
        and then Fixed_Request_Kind = Request_Kind (TD.all.Request));
 
@@ -264,11 +260,18 @@ is
    is (Handle.TD.all.State = Request_Written);
 
    ----------------------
-   -- Request_Complete --
+   -- Request_Consumed --
    ----------------------
 
-   function Request_Complete (Handle : Service_Handle) return Boolean
-   is (Handle.TD.all.State in Request_Complete | Confirm_Written);
+   function Request_Consumed (Handle : Service_Handle) return Boolean
+   is (Handle.TD.all.State = Request_Consumed);
+
+   ---------------------
+   -- Confirm_Written --
+   ---------------------
+
+   function Confirm_Written (Handle : Service_Handle) return Boolean
+   is (Handle.TD.all.State = Confirm_Written);
 
    -----------------------
    -- Confirm_Reference --
@@ -344,18 +347,34 @@ is
    end Build_Confirm;
 
    ---------------------
-   -- Process_Request --
+   -- Consume_Request --
    ---------------------
 
-   procedure Process_Request (Handle : in out Service_Handle) is
+   procedure Consume_Request (Handle : in out Service_Handle) is
+      Request_Kind_Old : constant Request_Kind_Type := Request_Kind (Handle)
+      with Ghost;
+
+      Requires_Confirm_Old : constant Boolean := Requires_Confirm (Handle)
+      with Ghost;
+
    begin
-      Process (Handle.TD.all.Request);
+      Handle.TD.all.State := Request_Consumed;
+      Consume (Handle.TD.all.Request);
+
+      --  The user-provided Consume function must not change the request Kind
+      --  nor in a way that it no longer requires a confirm.
+      --
+      --  If these assertions cannot be proved, then additional information
+      --  needs to be added to the postcondition of Consume to prove that
+      --  these properties are preserved.
+
+      pragma Assert (Request_Kind_Old = Request_Kind (Handle.TD.all.Request));
 
       pragma
-        Assert (Valid_Confirm (Handle.TD.all.Request, Handle.TD.all.Confirm));
+        Assert
+          (Requires_Confirm_Old = Requires_Confirm (Handle.TD.all.Request));
 
-      Handle.TD.all.State := Request_Complete;
-   end Process_Request;
+   end Consume_Request;
 
    --------------------------
    -- Try_Allocate_Request --

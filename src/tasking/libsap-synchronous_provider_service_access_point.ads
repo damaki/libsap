@@ -252,8 +252,15 @@ is
      Post   =>
        Request_Kind'Result = Request_Kind (Request_Reference (Handle).all);
 
-   function Request_Complete (Handle : Service_Handle) return Boolean
+   function Request_Consumed (Handle : Service_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
+
+   function Confirm_Written (Handle : Service_Handle) return Boolean
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       (if not Requires_Confirm (Handle) then not Confirm_Written'Result);
 
    function Confirm_Reference
      (Handle : Service_Handle) return not null access constant Confirm_Type
@@ -261,7 +268,7 @@ is
      Global => null,
      Pre    =>
        not Is_Null (Handle)
-       and then Request_Complete (Handle)
+       and then Confirm_Written (Handle)
        and then Requires_Confirm (Handle);
 
    procedure Move
@@ -274,7 +281,8 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
-       and (Request_Complete (Target) = Request_Complete (Source)'Old)
+       and (Confirm_Written (Target) = Confirm_Written (Source)'Old)
+       and (Request_Consumed (Target) = Request_Consumed (Source)'Old)
        and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    -----------------------------
@@ -414,7 +422,8 @@ is
      Post   =>
        not Is_Null (Handle)
        and then Valid_Request (Request_Reference (Handle).all)
-       and then not Request_Complete (Handle);
+       and then not Confirm_Written (Handle)
+       and then not Request_Consumed (Handle);
    --  Wait for a request from a Service User.
    --
    --  This is a potentially blocking operation.
@@ -427,7 +436,8 @@ is
        (if not Is_Null (Handle)
         then
           Valid_Request (Request_Reference (Handle).all)
-          and then not Request_Complete (Handle));
+          and then not Confirm_Written (Handle)
+          and then not Request_Consumed (Handle));
    --  Get the next request from a Service User, if one is currently pending.
    --
    --  This is a non-blocking operation.
@@ -450,7 +460,7 @@ is
      Global => (In_Out => Transaction_Queue),
      Pre    =>
        not Is_Null (Handle)
-       and then Request_Complete (Handle)
+       and then Confirm_Written (Handle)
        and then Requires_Confirm (Handle),
      Post   => Is_Null (Handle);
    --  Send a confirm primitive to a Service User.
@@ -478,7 +488,7 @@ is
      Pre  =>
        not Is_Null (Handle)
        and then Precondition
-       and then not Request_Complete (Handle),
+       and then not Confirm_Written (Handle),
      Post =>
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
@@ -487,7 +497,7 @@ is
        and
          (if Requires_Confirm (Handle)'Old
           then
-            Request_Complete (Handle)
+            Confirm_Written (Handle)
             and then
               Postcondition
                 (Request_Reference (Handle).all,
@@ -518,7 +528,7 @@ is
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
        and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
-       and Request_Complete (Handle)
+       and Confirm_Written (Handle)
        and (Get_TID (Handle) = Get_TID (Handle)'Old)
        and
          Postcondition
@@ -527,6 +537,33 @@ is
    --
    --  The confirm primitive is passed to the Build procedure, which writes
    --  to it.
+
+   generic
+      with procedure Consume (Request : in out Request_Type);
+      with function Precondition return Boolean;
+      with function Postcondition (Request : Request_Type) return Boolean;
+   procedure Consume_Request (Handle : in out Service_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then not Request_Consumed (Handle)
+       and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
+       and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
+       and Request_Consumed (Handle)
+       and Postcondition (Request_Reference (Handle).all);
+   --  Modify a request object.
+   --
+   --  The purpose of this procedure is to provide a way to "consume" data from
+   --  the request object by modifying some fields of the request. For example,
+   --  to take ownership over a pointer field in the request, which requires
+   --  setting it to null in the request.
+   --
+   --  The Consume general formal procedure must not modify the Request_Kind
+   --  or Requires_Confirm properties on the request, and this must be
+   --  specified in the postcondition for Consume.
 
 private
 
@@ -606,12 +643,12 @@ private
    function Request_Kind (Handle : Service_Handle) return Request_Kind_Type
    is (STQ.Request_Kind (Handle.Handle));
 
-   ----------------------
-   -- Request_Complete --
-   ----------------------
+   ---------------------
+   -- Confirm_Written --
+   ---------------------
 
-   function Request_Complete (Handle : Service_Handle) return Boolean
-   is (STQ.Request_Complete (Handle.Handle));
+   function Confirm_Written (Handle : Service_Handle) return Boolean
+   is (STQ.Confirm_Written (Handle.Handle));
 
    ---------------------
    -- Request_Written --
@@ -619,5 +656,12 @@ private
 
    function Request_Written (Handle : Request_Handle) return Boolean
    is (STQ.Request_Written (Handle.Handle));
+
+   ----------------------
+   -- Request_Consumed --
+   ----------------------
+
+   function Request_Consumed (Handle : Service_Handle) return Boolean
+   is (STQ.Request_Consumed (Handle.Handle));
 
 end LibSAP.Synchronous_Provider_Service_Access_Point;

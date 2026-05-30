@@ -247,8 +247,15 @@ is
        Requires_Confirm'Result
        = Requires_Confirm (Request_Reference (Handle).all);
 
-   function Request_Complete (Handle : Service_Handle) return Boolean
+   function Request_Consumed (Handle : Service_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
+
+   function Confirm_Written (Handle : Service_Handle) return Boolean
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       (if not Requires_Confirm (Handle) then not Confirm_Written'Result);
 
    function Confirm_Reference
      (Handle : Service_Handle) return not null access constant Confirm_Type
@@ -256,7 +263,7 @@ is
      Global => null,
      Pre    =>
        not Is_Null (Handle)
-       and then Request_Complete (Handle)
+       and then Confirm_Written (Handle)
        and then Requires_Confirm (Handle);
 
    procedure Move
@@ -271,7 +278,8 @@ is
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Get_TID (Target) = Get_TID (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
-       and (Request_Complete (Target) = Request_Complete (Source)'Old)
+       and (Confirm_Written (Target) = Confirm_Written (Source)'Old)
+       and (Request_Consumed (Target) = Request_Consumed (Source)'Old)
        and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    generic
@@ -287,36 +295,34 @@ is
    with
      Pre  =>
        not Is_Null (Handle)
-       and then not Request_Complete (Handle)
+       and then not Confirm_Written (Handle)
        and then Precondition
        and then Requires_Confirm (Handle),
      Post =>
        not Is_Null (Handle)
        and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
-       and Request_Complete (Handle)
+       and Confirm_Written (Handle)
        and (Get_TID (Handle) = Get_TID (Handle)'Old)
        and
          Postcondition
            (Request_Reference (Handle).all, Confirm_Reference (Handle).all);
 
    generic
-      with procedure Process (Request : in out Request_Type);
+      with procedure Consume (Request : in out Request_Type);
       with function Precondition return Boolean;
       with function Postcondition (Request : Request_Type) return Boolean;
-   procedure Process_Request (Handle : in out Service_Handle)
+   procedure Consume_Request (Handle : in out Service_Handle)
    with
      Pre  =>
        not Is_Null (Handle)
-       and then Precondition
-       and then not Request_Complete (Handle)
-       and then not Requires_Confirm (Handle),
+       and then not Request_Consumed (Handle)
+       and then Precondition,
      Post =>
        not Is_Null (Handle)
-       and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
-       and Request_Complete (Handle)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old)
        and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
+       and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
+       and Request_Consumed (Handle)
        and Postcondition (Request_Reference (Handle).all);
 
    ----------------------------
@@ -419,14 +425,15 @@ is
         others                          =>
           not Is_Null (Handle)
           and then Valid_Request (Request_Reference (Handle).all)
-          and then not Request_Complete (Handle));
+          and then not Confirm_Written (Handle)
+          and then not Request_Consumed (Handle));
 
    procedure Send_Confirm (Handle : in out Service_Handle)
    with
      Global => (In_Out => Transaction_Pool),
      Pre    =>
        not Is_Null (Handle)
-       and then Request_Complete (Handle)
+       and then Confirm_Written (Handle)
        and then Requires_Confirm (Handle),
      Post   => Is_Null (Handle);
 
