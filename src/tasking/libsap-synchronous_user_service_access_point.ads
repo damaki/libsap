@@ -494,6 +494,7 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
+       and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
        and (Get_TID (Handle) = Get_TID (Handle)'Old)
        and
          (if Requires_Response (Handle)'Old
@@ -529,6 +530,7 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
+       and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
        and Indication_Complete (Handle)
        and (Get_TID (Handle) = Get_TID (Handle)'Old)
        and

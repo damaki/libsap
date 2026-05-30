@@ -445,15 +445,17 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
-       and (if Requires_Confirm (Handle) then Request_Complete (Handle))
+       and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
        and (Get_TID (Handle) = Get_TID (Handle)'Old)
        and Request_Complete (Handle)
        and
          (if Requires_Confirm (Handle)'Old
           then
-            Postcondition
-              (Request_Reference (Handle).all,
-               Confirm_Reference (Handle).all));
+            Request_Complete (Handle)
+            and then
+              Postcondition
+                (Request_Reference (Handle).all,
+                 Confirm_Reference (Handle).all));
    --  Process a request, and generate a confirm if one is required.
    --
    --  This procedure passes the request to either Process_Request_No_Confirm
@@ -479,6 +481,7 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
+       and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
        and Request_Complete (Handle)
        and (Get_TID (Handle) = Get_TID (Handle)'Old)
        and
