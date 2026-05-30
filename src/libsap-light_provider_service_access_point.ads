@@ -22,6 +22,9 @@ generic
    --  Returns true if the Request requires a confirm primitive to be sent in
    --  response.
 
+   with function Valid_Request (Request : Request_Type) return Boolean;
+   --  Returns True if the Request object is valid
+
    with
      function Valid_Confirm
        (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
@@ -80,8 +83,13 @@ is
        Requires_Confirm'Result
        = Requires_Confirm (Request_Reference (Handle).all);
 
-   function Request_Ready (Handle : Request_Handle) return Boolean
-   with Global => null, Pre => not Is_Null (Handle);
+   function Request_Written (Handle : Request_Handle) return Boolean
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       (if Request_Written'Result
+        then Valid_Request (Request_Reference (Handle).all));
 
    procedure Move
      (Target : in out Request_Handle; Source : in out Request_Handle)
@@ -93,7 +101,7 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
-       and (Request_Ready (Target) = Request_Ready (Source)'Old)
+       and (Request_Written (Target) = Request_Written (Source)'Old)
        and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    generic
@@ -104,10 +112,13 @@ is
         is Always_True;
    procedure Build_Request (Handle : in out Request_Handle)
    with
-     Pre  => not Is_Null (Handle) and then Precondition,
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition
+       and then not Request_Written (Handle),
      Post =>
        not Is_Null (Handle)
-       and Request_Ready (Handle)
+       and Request_Written (Handle)
        and Postcondition (Request_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Write a request primitive.
@@ -237,14 +248,17 @@ is
      Post   =>
        Request_Kind'Result = Request_Kind (Request_Reference (Handle).all);
 
-   function Has_Valid_Confirm (Handle : Service_Handle) return Boolean
+   function Request_Complete (Handle : Service_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
 
    function Confirm_Reference
      (Handle : Service_Handle) return not null access constant Confirm_Type
    with
      Global => null,
-     Pre    => not Is_Null (Handle) and then Has_Valid_Confirm (Handle);
+     Pre    =>
+       not Is_Null (Handle)
+       and then Request_Complete (Handle)
+       and then Requires_Confirm (Handle);
 
    procedure Move
      (Target : in out Service_Handle; Source : in out Service_Handle)
@@ -256,7 +270,7 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
-       and (Has_Valid_Confirm (Target) = Has_Valid_Confirm (Source)'Old)
+       and (Request_Complete (Target) = Request_Complete (Source)'Old)
        and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    -----------------------------
@@ -268,7 +282,7 @@ is
      Inline,
      Global => (In_Out => Transaction_Pool),
      Pre    => Is_Null (Handle),
-     Post   => (if not Is_Null (Handle) then not Request_Ready (Handle));
+     Post   => (if not Is_Null (Handle) then not Request_Written (Handle));
    --  Try to allocate a new request object.
    --
    --  If there is enough free resources for a new transaction, then one is
@@ -283,7 +297,7 @@ is
      Pre            =>
        not Is_Null (Handle)
        and then Is_Null (Promise)
-       and then Request_Ready (Handle),
+       and then Request_Written (Handle),
      Post           => Is_Null (Handle),
      Contract_Cases =>
        (Requires_Confirm (Handle) =>
@@ -378,10 +392,17 @@ is
    with Global => (Input => Transaction_Queue);
 
    procedure Try_Get_Next_Request (Handle : in out Service_Handle)
-   with Global => (In_Out => Transaction_Queue), Pre => Is_Null (Handle);
+   with
+     Global => (In_Out => Transaction_Queue),
+     Pre    => Is_Null (Handle),
+     Post   =>
+       (if not Is_Null (Handle)
+        then
+          Valid_Request (Request_Reference (Handle).all)
+          and then not Request_Complete (Handle));
    --  Try to get the next pending request
 
-   procedure Request_Completed (Handle : in out Service_Handle)
+   procedure Release (Handle : in out Service_Handle)
    with
      Global => (In_Out => Transaction_Pool),
      Pre    => not Is_Null (Handle) and then not Requires_Confirm (Handle),
@@ -397,8 +418,8 @@ is
      Global => (In_Out => Transaction_Pool),
      Pre    =>
        not Is_Null (Handle)
-       and then Requires_Confirm (Handle)
-       and then Has_Valid_Confirm (Handle),
+       and then Request_Complete (Handle)
+       and then Requires_Confirm (Handle),
      Post   => Is_Null (Handle);
    --  Send a confirm primitive to a Service User.
    --
@@ -424,16 +445,15 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
-       and (if Requires_Confirm (Handle) then Has_Valid_Confirm (Handle))
+       and (if Requires_Confirm (Handle) then Request_Complete (Handle))
        and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and Request_Complete (Handle)
        and
          (if Requires_Confirm (Handle)'Old
           then
-            Has_Valid_Confirm (Handle)
-            and then
-              Postcondition
-                (Request_Reference (Handle).all,
-                 Confirm_Reference (Handle).all));
+            Postcondition
+              (Request_Reference (Handle).all,
+               Confirm_Reference (Handle).all));
    --  Process a request, and generate a confirm if one is required.
    --
    --  This procedure passes the request to either Process_Request_No_Confirm
@@ -459,7 +479,7 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
-       and Has_Valid_Confirm (Handle)
+       and Request_Complete (Handle)
        and (Get_TID (Handle) = Get_TID (Handle)'Old)
        and
          Postcondition
@@ -479,6 +499,7 @@ private
         Queue_Capacity    => Queue_Capacity,
         Request_Kind      => Request_Kind,
         Requires_Confirm  => Requires_Confirm,
+        Valid_Request     => Valid_Request,
         Valid_Confirm     => Valid_Confirm);
    pragma Part_Of (Transaction_Pool);
 
@@ -546,11 +567,11 @@ private
    function Request_Kind (Handle : Service_Handle) return Request_Kind_Type
    is (STQ.Request_Kind (Handle.Handle));
 
-   -------------------
-   -- Request_Ready --
-   -------------------
+   ---------------------
+   -- Request_Written --
+   ---------------------
 
-   function Request_Ready (Handle : Request_Handle) return Boolean
-   is (STQ.Request_Ready (Handle.Handle));
+   function Request_Written (Handle : Request_Handle) return Boolean
+   is (STQ.Request_Written (Handle.Handle));
 
 end LibSAP.Light_Provider_Service_Access_Point;

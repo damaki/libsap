@@ -81,6 +81,15 @@ is
    function Requires_Confirm (Request : Request_Type) return Boolean
    is (Request.Kind in ECHO_Req | INCREMENT_Req);
 
+   --  Valid_Request is used to prove that a request contains valid data.
+   --
+   --  In this example there is no possibility of generating an invalid
+   --  request, so this always returns True.
+
+   function Valid_Request
+     (Request : Request_Type with Unreferenced) return Boolean
+   is (True);
+
    --  Valid_Confirm is used to check whether a confirm primitive is a correct
    --  response to a request primitive. In this example it is sufficient to
    --  simply check that the the message kind is correct, e.g. that a ECHO.cfm
@@ -111,6 +120,7 @@ is
         Confirm_Type      => Confirm_Type,
         Request_Kind      => Get_Request_Kind,
         Requires_Confirm  => Requires_Confirm,
+        Valid_Request     => Valid_Request,
         Valid_Confirm     => Valid_Confirm,
         Priority          => System.Priority'Last,
         Queue_Capacity    => 1);

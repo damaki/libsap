@@ -23,6 +23,7 @@ is
       Request_Written,
       Request_Pending,
       Request_Read,
+      Request_Complete,
       Confirm_Written,
       Confirm_Pending,
       Confirm_Read);
@@ -130,7 +131,8 @@ is
    function Pending_Request_Predicate
      (TD : not null Transaction_Data_Access) return Boolean
    is (TD.all.State = Request_Pending
-       and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request));
+       and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request)
+       and then Valid_Request (TD.all.Request));
 
    ------------------------------
    -- Request_Handle_Predicate --
@@ -139,7 +141,10 @@ is
    function Request_Handle_Predicate
      (TD : not null Transaction_Data_Access) return Boolean
    is (TD.all.State in Request_Allocated | Request_Written
-       and then TD.all.Cfm_Token /= null);
+       and then TD.all.Cfm_Token /= null
+       and then
+         (if TD.all.State = Request_Written
+          then Valid_Request (TD.all.Request)));
 
    ------------------------------
    -- Service_Handle_Predicate --
@@ -148,7 +153,12 @@ is
    function Service_Handle_Predicate
      (TD                 : not null Transaction_Data_Access;
       Fixed_Request_Kind : Request_Kind_Type) return Boolean
-   is (TD.all.State in Request_Read | Confirm_Written
+   is (TD.all.State in Request_Read | Request_Complete | Confirm_Written
+
+       and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request)
+
+       and then
+         (if TD.all.State = Request_Read then Valid_Request (TD.all.Request))
 
        and then
          (if TD.all.State = Confirm_Written
@@ -156,7 +166,9 @@ is
             Requires_Confirm (TD.all.Request)
             and then Valid_Confirm (TD.all.Request, TD.all.Confirm))
 
-       and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request)
+       and then
+         (if TD.all.State = Request_Complete
+          then not Requires_Confirm (TD.all.Request))
 
        and then Fixed_Request_Kind = Request_Kind (TD.all.Request));
 
@@ -244,19 +256,19 @@ is
    function Requires_Confirm (Handle : Service_Handle) return Boolean
    is (Requires_Confirm (Handle.TD.all.Request));
 
-   -------------------
-   -- Request_Ready --
-   -------------------
+   ---------------------
+   -- Request_Written --
+   ---------------------
 
-   function Request_Ready (Handle : Request_Handle) return Boolean
+   function Request_Written (Handle : Request_Handle) return Boolean
    is (Handle.TD.all.State = Request_Written);
 
-   -----------------------
-   -- Has_Valid_Confirm --
-   -----------------------
+   ----------------------
+   -- Request_Complete --
+   ----------------------
 
-   function Has_Valid_Confirm (Handle : Service_Handle) return Boolean
-   is (Handle.TD.all.State = Confirm_Written);
+   function Request_Complete (Handle : Service_Handle) return Boolean
+   is (Handle.TD.all.State in Request_Complete | Confirm_Written);
 
    -----------------------
    -- Confirm_Reference --
@@ -272,13 +284,15 @@ is
 
    procedure Build_Request (Handle : in out Request_Handle) is
    begin
-      Handle.TD.all.State := Request_Written;
-
       pragma Assert (Precondition);
 
       Build (Handle.TD.all.Request);
 
       pragma Assert (Postcondition (Handle.TD.all.Request));
+
+      pragma Assert (Valid_Request (Handle.TD.all.Request));
+
+      Handle.TD.all.State := Request_Written;
    end Build_Request;
 
    ----------
@@ -328,6 +342,20 @@ is
 
       Handle.TD.all.State := Confirm_Written;
    end Build_Confirm;
+
+   ---------------------
+   -- Process_Request --
+   ---------------------
+
+   procedure Process_Request (Handle : in out Service_Handle) is
+   begin
+      Process (Handle.TD.all.Request);
+
+      pragma
+        Assert (Valid_Confirm (Handle.TD.all.Request, Handle.TD.all.Confirm));
+
+      Handle.TD.all.State := Request_Complete;
+   end Process_Request;
 
    --------------------------
    -- Try_Allocate_Request --
@@ -480,11 +508,11 @@ is
       Resolve_Discarded_Promise (TID);
    end Send_Confirm;
 
-   -----------------------
-   -- Request_Completed --
-   -----------------------
+   -------------
+   -- Release --
+   -------------
 
-   procedure Request_Completed (Handle : in out Service_Handle) is
+   procedure Release (Handle : in out Service_Handle) is
       Temp     : Transaction_Data_Access;
       Free_Ptr : Free_Transaction_Data_Access;
    begin
@@ -497,7 +525,7 @@ is
       Store_In_Free_Pool (Free_Ptr);
 
       pragma Unreferenced (Free_Ptr);
-   end Request_Completed;
+   end Release;
 
    -------------
    -- Discard --

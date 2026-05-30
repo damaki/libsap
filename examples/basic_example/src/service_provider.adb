@@ -141,7 +141,7 @@ is
             Confirm_Barrier.Notify_Confirm_Pending;
 
          else
-            SAP.Request_Completed (Handle);
+            SAP.Release (Handle);
          end if;
 
       end loop;

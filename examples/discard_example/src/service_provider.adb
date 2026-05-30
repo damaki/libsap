@@ -112,7 +112,7 @@ is
          if SAP.Requires_Confirm (Handle) then
             SAP.Send_Confirm (Handle);
          else
-            SAP.Request_Completed (Handle);
+            SAP.Release (Handle);
          end if;
 
       end loop;

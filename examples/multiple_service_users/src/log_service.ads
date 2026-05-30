@@ -45,6 +45,10 @@ is
      (Request : LOG_Req_Type with Unreferenced) return Boolean
    is (False);
 
+   function Valid_Request
+     (Request : LOG_Req_Type with Unreferenced) return Boolean
+   is (True);
+
    function Valid_Confirm
      (Request : LOG_Req_Type with Unreferenced;
       Confirm : Confirm_Type with Unreferenced) return Boolean
@@ -57,6 +61,7 @@ is
         Confirm_Type      => Confirm_Type,
         Request_Kind      => Get_Request_Kind,
         Requires_Confirm  => Requires_Confirm,
+        Valid_Request     => Valid_Request,
         Valid_Confirm     => Valid_Confirm,
         Priority          => System.Priority'Last,
         Queue_Capacity    => 20);

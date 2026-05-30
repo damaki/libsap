@@ -52,12 +52,12 @@ is
    function Requires_Response (Handle : Service_Handle) return Boolean
    is (STQ.Requires_Confirm (Handle.Handle));
 
-   ------------------------
-   -- Has_Valid_Response --
-   ------------------------
+   -------------------------
+   -- Indication_Complete --
+   -------------------------
 
-   function Has_Valid_Response (Handle : Service_Handle) return Boolean
-   is (STQ.Has_Valid_Confirm (Handle.Handle));
+   function Indication_Complete (Handle : Service_Handle) return Boolean
+   is (STQ.Request_Complete (Handle.Handle));
 
    ------------------------
    -- Response_Reference --
@@ -162,14 +162,14 @@ is
       STQ.Try_Get_Next_Request (Queue, Handle.Handle);
    end Try_Get_Next_Indication;
 
-   --------------------------
-   -- Indication_Completed --
-   --------------------------
+   -------------
+   -- Release --
+   -------------
 
-   procedure Indication_Completed (Handle : in out Service_Handle) is
+   procedure Release (Handle : in out Service_Handle) is
    begin
-      STQ.Request_Completed (Handle.Handle);
-   end Indication_Completed;
+      STQ.Release (Handle.Handle);
+   end Release;
 
    -------------------
    -- Send_Response --

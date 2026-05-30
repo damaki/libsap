@@ -27,6 +27,10 @@ generic
    --  primitive.
 
    with
+     function Valid_Indication (Indication : Indication_Type) return Boolean;
+   --  Returns True if the Indication object is valid
+
+   with
      function Valid_Response
        (Indication : Indication_Type; Response : Response_Type) return Boolean;
    --  Returns True if the Response object is valid for the given Indication
@@ -80,8 +84,13 @@ is
        Requires_Response'Result
        = Requires_Response (Indication_Reference (Handle).all);
 
-   function Indication_Ready (Handle : Indication_Handle) return Boolean
-   with Global => null, Pre => not Is_Null (Handle);
+   function Indication_Written (Handle : Indication_Handle) return Boolean
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       (if Indication_Written'Result
+        then Valid_Indication (Indication_Reference (Handle).all));
 
    function Indication_Kind
      (Handle : Indication_Handle) return Indication_Kind_Type
@@ -102,7 +111,7 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Response (Target) = Requires_Response (Source)'Old)
-       and (Indication_Ready (Target) = Indication_Ready (Source)'Old)
+       and (Indication_Written (Target) = Indication_Written (Source)'Old)
        and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
 
    generic
@@ -113,10 +122,13 @@ is
         is Always_True;
    procedure Build_Indication (Handle : in out Indication_Handle)
    with
-     Pre  => not Is_Null (Handle) and then Precondition,
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition
+       and then not Indication_Written (Handle),
      Post =>
        not Is_Null (Handle)
-       and Indication_Ready (Handle)
+       and Indication_Written (Handle)
        and Postcondition (Indication_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Write an indication primitive.
@@ -251,14 +263,17 @@ is
        Requires_Response'Result
        = Requires_Response (Indication_Reference (Handle).all);
 
-   function Has_Valid_Response (Handle : Service_Handle) return Boolean
+   function Indication_Complete (Handle : Service_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
 
    function Response_Reference
      (Handle : Service_Handle) return not null access constant Response_Type
    with
      Global => null,
-     Pre    => not Is_Null (Handle) and then Has_Valid_Response (Handle);
+     Pre    =>
+       not Is_Null (Handle)
+       and then Indication_Complete (Handle)
+       and then Requires_Response (Handle);
 
    procedure Move
      (Target : in out Service_Handle; Source : in out Service_Handle)
@@ -270,7 +285,7 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Response (Target) = Requires_Response (Source)'Old)
-       and (Has_Valid_Response (Target) = Has_Valid_Response (Source)'Old)
+       and (Indication_Complete (Target) = Indication_Complete (Source)'Old)
        and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
 
    ---------------------------------
@@ -282,7 +297,7 @@ is
      Inline,
      Global => (In_Out => Transaction_Queue),
      Pre    => Is_Null (Handle),
-     Post   => (if not Is_Null (Handle) then not Indication_Ready (Handle));
+     Post   => (if not Is_Null (Handle) then not Indication_Written (Handle));
    --  Try to allocate a new indication object.
    --
    --  If there is enough free resources for a new transaction, then one is
@@ -299,7 +314,7 @@ is
      Pre            =>
        not Is_Null (Handle)
        and then Is_Null (Promise)
-       and then Indication_Ready (Handle),
+       and then Indication_Written (Handle),
      Post           => Is_Null (Handle),
      Contract_Cases =>
        (Requires_Response (Handle) =>
@@ -408,19 +423,29 @@ is
    with
      Global => (In_Out => Transaction_Queue),
      Pre    => Is_Null (Handle),
-     Post   => not Is_Null (Handle);
+     Post   =>
+       not Is_Null (Handle)
+       and then Valid_Indication (Indication_Reference (Handle).all)
+       and then not Indication_Complete (Handle);
    --  Wait for an indication from a Service Provider.
    --
    --  This is a potentially blocking operation.
 
    procedure Try_Get_Next_Indication (Handle : in out Service_Handle)
-   with Global => (In_Out => Transaction_Queue), Pre => Is_Null (Handle);
+   with
+     Global => (In_Out => Transaction_Queue),
+     Pre    => Is_Null (Handle),
+     Post   =>
+       (if not Is_Null (Handle)
+        then
+          Valid_Indication (Indication_Reference (Handle).all)
+          and then not Indication_Complete (Handle));
    --  Get the next indication from a Service Provider, if one is currently
    --  pending.
    --
    --  This is a non-blocking operation.
 
-   procedure Indication_Completed (Handle : in out Service_Handle)
+   procedure Release (Handle : in out Service_Handle)
    with
      Global => (In_Out => Transaction_Queue),
      Pre    => not Is_Null (Handle) and then not Requires_Response (Handle),
@@ -438,8 +463,8 @@ is
      Global => (In_Out => Transaction_Queue),
      Pre    =>
        not Is_Null (Handle)
-       and then Requires_Response (Handle)
-       and then Has_Valid_Response (Handle),
+       and then Indication_Complete (Handle)
+       and then Requires_Response (Handle),
      Post   => Is_Null (Handle);
    --  Send a response primitive to a Service Provider.
    --
@@ -473,7 +498,7 @@ is
        and
          (if Requires_Response (Handle)'Old
           then
-            Has_Valid_Response (Handle)
+            Indication_Complete (Handle)
             and then
               Postcondition
                 (Indication_Reference (Handle).all,
@@ -504,7 +529,7 @@ is
      Post =>
        not Is_Null (Handle)
        and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
-       and Has_Valid_Response (Handle)
+       and Indication_Complete (Handle)
        and (Get_TID (Handle) = Get_TID (Handle)'Old)
        and
          Postcondition
@@ -525,6 +550,7 @@ private
         Queue_Capacity    => Queue_Capacity,
         Request_Kind      => Indication_Kind,
         Requires_Confirm  => Requires_Response,
+        Valid_Request     => Valid_Indication,
         Valid_Confirm     => Valid_Response);
    pragma Part_Of (Transaction_Queue);
 
@@ -596,11 +622,11 @@ private
      (Handle : Service_Handle) return Indication_Kind_Type
    is (STQ.Request_Kind (Handle.Handle));
 
-   -------------------
-   -- Indication_Ready --
-   -------------------
+   ------------------------
+   -- Indication_Written --
+   ------------------------
 
-   function Indication_Ready (Handle : Indication_Handle) return Boolean
-   is (STQ.Request_Ready (Handle.Handle));
+   function Indication_Written (Handle : Indication_Handle) return Boolean
+   is (STQ.Request_Written (Handle.Handle));
 
 end LibSAP.Synchronous_User_Service_Access_Point;
