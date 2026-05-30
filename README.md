@@ -116,6 +116,7 @@ Requests are queued in the SAP in first-in first-out (FIFO) order.
   * compatible with environments without tasking (e.g. "light" GNAT runtimes).
   * compatible with Ravenscar and Jorvik profiles.
 * Supports formal verification with SPARK.
+* Supports messages with ownership semantics (e.g. messages containing pointers)
 
 LibSAP's API is designed so that it can only be used in the correct manner.
 The SPARK tools (i.e., GNATprove) will catch any violations in the API usage
@@ -123,12 +124,16 @@ The SPARK tools (i.e., GNATprove) will catch any violations in the API usage
 In particular, the SPARK proofs ensure that:
 * Resources are not leaked (i.e., users cannot forget to release resources
   before they go out of scope);
+* The Service User always sends valid requests to the Service Provider
+  (for a user-defined definition of "valid").
 * If a Service User sends a request primitive that requires a confirm primitive,
   then it cannot forget to read the confirm primitive from the SAP.
 * If a Service User sends a request primitive that does _not_ require a confirm,
   then it cannot try to read one from the SAP.
 * If the Service Provider receives a request that expects a confirm, then it
-  cannot forget to send one before completing its side of the transaction.
+  cannot forget to send one before completing its side of the transaction,
+  and the confirm primitive is always correct for the request that was
+  received.
 
 ## Limitations
 
@@ -138,9 +143,6 @@ liveliness. That is, it cannot guarantee that a Service Provider task will
 actually read and respond to requests. It is the user's responsibility to
 ensure that their tasks respond to requests within the appropriate deadlines
 for their system.
-
-### Ownership Semantics on Primitives
-Service Primitives transferred using LibSAP cannot have ownership semantics.
 
 ### Non-blocking API
 Most of LibSAP's API calls are non-blocking, so LibSAP does not provide a way
@@ -177,7 +179,8 @@ There are four types of handles:
 
 The examples below demonstrate the basic concepts of using LibSAP.
 
-See the `examples` directory for some complete example programs.
+>[!NOTE]
+>See the `examples` directory for some complete example programs.
 
 ### SAP Packages
 
@@ -303,6 +306,14 @@ when a confirmation is needed:
    function Requires_Confirm (Request : Request_Type) return Boolean
    is (Request.Kind in ECHO_Req | INCREMENT_Req);
 
+   --  Valid_Request is used to prove that a request contains valid data.
+   --  This example has no special constraints, so we always return True.
+
+   function Valid_Request
+     (Request : Request_Type with Unreferenced) return Boolean
+   is (True);
+
+
    --  Valid_Confirm is used to check whether a confirm primitive is a correct
    --  response to a request primitive. In this example it is sufficient to
    --  simply check that the the message kind is correct, e.g. that a ECHO.cfm
@@ -316,17 +327,41 @@ when a confirmation is needed:
          when INCREMENT_SET_Req => False);
 ```
 
+LibSAP also needs to know when primitives need to be explicitly cleaned up
+before they can be released at the end of a transaction.
+This is only applicable when primitives have ownership semantics (e.g. they
+contain pointers), which is not the case for this example so we stub them out:
+
+```ada
+   function Request_Requires_Cleanup
+     (Request : Request_Type with Unreferenced) return Boolean
+   is (False);
+
+   function Confirm_Requires_Cleanup
+     (Confirm : Confirm_Type with Unreferenced) return Boolean
+   is (False);
+
+   function Might_Require_Cleanup
+     (Kind : Request_Kind with Unreferenced) return Boolean
+   is (False);
+```
+
 Now we have everything we need to create a SAP:
 
 ```ada
    package SAP is new
      LibSAP.Synchronous_Provider_Service_Access_Point
-       (Request_Type     => Request_Type,
-        Confirm_Type     => Confirm_Type,
-        Requires_Confirm => Requires_Confirm,
-        Valid_Confirm    => Valid_Confirm,
-        Priority         => System.Priority'Last,
-        Queue_Capacity   => 5);
+       (Request_Kind_Type        => Request_Kind,
+        Request_Type             => Request_Type,
+        Confirm_Type             => Confirm_Type,
+        Requires_Confirm         => Requires_Confirm,
+        Request_Requires_Cleanup => Request_Requires_Cleanup,
+        Confirm_Requires_Cleanup => Confirm_Requires_Cleanup,
+        Might_Require_Cleanup    => Might_Require_Cleanup,
+        Valid_Request            => Valid_Request,
+        Valid_Confirm            => Valid_Confirm,
+        Priority                 => System.Priority'Last,
+        Queue_Capacity           => 5);
 ```
 
 >[!NOTE]
@@ -335,7 +370,8 @@ Now we have everything we need to create a SAP:
 
 >[!NOTE]
 >`Queue_Capacity` is the maximum number of concurrent transactions that
->the SAP can handle. Increasing this value will increase memory usage.
+>the SAP can handle. Increasing this value will increase memory usage, but will
+>allow more transactions to be handled concurrently.
 
 ### Sending a Request (Service User)
 
