@@ -119,6 +119,7 @@ is
              and then HD.Has_Pending_Indication,
            Post =>
              Is_Valid (HD)
+             and then Valid_Indication (STQ.Request_Reference (Handle).all)
              and then not STQ.Is_Null (Handle)
              and then not STQ.Confirm_Written (Handle)
              and then not STQ.Request_Consumed (Handle);
@@ -152,7 +153,8 @@ is
              and then
                (if not STQ.Is_Null (Handle)
                 then
-                  not STQ.Confirm_Written (Handle)
+                  Valid_Indication (STQ.Request_Reference (Handle).all)
+                  and then not STQ.Confirm_Written (Handle)
                   and then not STQ.Request_Consumed (Handle));
 
          procedure Wrapper (HD : in out Holder_Data) is

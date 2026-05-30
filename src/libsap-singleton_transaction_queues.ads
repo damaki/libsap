@@ -282,7 +282,9 @@ is
         procedure Clean
           (Request : in out Request_Type; Confirm : in out Confirm_Type);
 
-      with function Precondition return Boolean;
+      with
+        function Precondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
 
       with
         function Postcondition
@@ -290,11 +292,16 @@ is
    procedure Cleanup (Handle : in out Confirm_Handle)
    with
      Inline,
-     Global => null,
-     Pre    => Precondition,
-     Post   =>
-       Postcondition
-         (Request_Reference (Handle).all, Confirm_Reference (Handle).all)
+     Pre  =>
+       not Is_Null (Handle)
+       and then
+         Precondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all),
+     Post =>
+       not Is_Null (Handle)
+       and then
+         Postcondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all)
        and then not Request_Requires_Cleanup (Request_Reference (Handle).all);
 
    ---------------------
@@ -445,7 +452,9 @@ is
    procedure Abort_Request (Handle : in out Request_Handle)
    with
      Global => (In_Out => Transaction_Pool),
-     Pre    => not Is_Null (Handle),
+     Pre    =>
+       not Is_Null (Handle)
+       and then not Request_Requires_Cleanup (Request_Reference (Handle).all),
      Post   => Is_Null (Handle);
 
    procedure Send_Request

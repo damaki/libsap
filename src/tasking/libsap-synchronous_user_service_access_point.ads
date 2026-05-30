@@ -252,7 +252,10 @@ is
           (Indication : in out Indication_Type;
            Response   : in out Response_Type);
 
-      with function Precondition return Boolean is Always_True;
+      with
+        function Precondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
 
       with
         function Postcondition
@@ -261,11 +264,17 @@ is
    procedure Cleanup (Handle : in out Response_Handle)
    with
      Inline,
-     Global => null,
-     Pre    => Precondition,
-     Post   =>
-       Postcondition
-         (Indication_Reference (Handle).all, Response_Reference (Handle).all)
+     Pre  =>
+       not Is_Null (Handle)
+       and then
+         Precondition
+           (Indication_Reference (Handle).all,
+            Response_Reference (Handle).all),
+     Post =>
+       not Is_Null (Handle)
+       and then
+         Postcondition
+           (Indication_Reference (Handle).all, Response_Reference (Handle).all)
        and then
          not Indication_Requires_Cleanup (Indication_Reference (Handle).all);
 
@@ -380,7 +389,10 @@ is
    with
      Inline,
      Global => (In_Out => Transaction_Queue),
-     Pre    => not Is_Null (Handle),
+     Pre    =>
+       not Is_Null (Handle)
+       and then
+         not Indication_Requires_Cleanup (Indication_Reference (Handle).all),
      Post   => Is_Null (Handle);
    --  Abort a indication.
    --
@@ -442,7 +454,7 @@ is
    with
      Inline,
      Global => (In_Out => Transaction_Queue),
-     Pre    => not Is_Null (Handle),
+     Pre    => not Is_Null (Handle) and then not Requires_Cleanup (Handle),
      Post   => Is_Null (Handle);
    --  Release a response handle.
    --
@@ -456,7 +468,10 @@ is
       Ind_Handle : in out Indication_Handle)
    with
      Global => null,
-     Pre    => not Is_Null (Res_Handle) and then Is_Null (Ind_Handle),
+     Pre    =>
+       not Is_Null (Res_Handle)
+       and then Is_Null (Ind_Handle)
+       and then not Requires_Cleanup (Res_Handle),
      Post   =>
        not Is_Null (Ind_Handle)
        and Is_Null (Res_Handle)

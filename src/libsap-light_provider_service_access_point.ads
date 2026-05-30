@@ -235,7 +235,10 @@ is
         procedure Clean
           (Request : in out Request_Type; Confirm : in out Confirm_Type);
 
-      with function Precondition return Boolean is Always_True;
+      with
+        function Precondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        is Always_True;
 
       with
         function Postcondition
@@ -244,11 +247,16 @@ is
    procedure Cleanup (Handle : in out Confirm_Handle)
    with
      Inline,
-     Global => null,
-     Pre    => Precondition,
-     Post   =>
-       Postcondition
-         (Request_Reference (Handle).all, Confirm_Reference (Handle).all)
+     Pre  =>
+       not Is_Null (Handle)
+       and then
+         Precondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all),
+     Post =>
+       not Is_Null (Handle)
+       and then
+         Postcondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all)
        and then not Request_Requires_Cleanup (Request_Reference (Handle).all);
 
    ---------------------
@@ -355,7 +363,9 @@ is
    with
      Inline,
      Global => (In_Out => Transaction_Pool),
-     Pre    => not Is_Null (Handle),
+     Pre    =>
+       not Is_Null (Handle)
+       and then not Request_Requires_Cleanup (Request_Reference (Handle).all),
      Post   => Is_Null (Handle);
    --  Abort a request.
    --
@@ -413,7 +423,7 @@ is
    with
      Inline,
      Global => (In_Out => Transaction_Pool),
-     Pre    => not Is_Null (Handle),
+     Pre    => not Is_Null (Handle) and then not Requires_Cleanup (Handle),
      Post   => Is_Null (Handle);
    --  Release a confirm handle.
    --
@@ -424,7 +434,10 @@ is
      (Cfm_Handle : in out Confirm_Handle; Req_Handle : in out Request_Handle)
    with
      Global => null,
-     Pre    => not Is_Null (Cfm_Handle) and then Is_Null (Req_Handle),
+     Pre    =>
+       not Is_Null (Cfm_Handle)
+       and then Is_Null (Req_Handle)
+       and then not Requires_Cleanup (Cfm_Handle),
      Post   =>
        not Is_Null (Req_Handle)
        and Is_Null (Cfm_Handle)

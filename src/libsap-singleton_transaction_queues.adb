@@ -26,7 +26,8 @@ is
       Request_Consumed,
       Confirm_Written,
       Confirm_Pending,
-      Confirm_Read);
+      Confirm_Read,
+      Confirm_Cleaned);
 
    type Transaction_Data (TID : Transaction_ID) is record
       Request   : aliased Request_Type;
@@ -197,6 +198,9 @@ is
        and then TD.all.Cfm_Token /= null
        and then not Confirm_Requires_Cleanup (TD.all.Confirm)
        and then
+         (if TD.all.State = Request_Allocated
+          then not Request_Requires_Cleanup (TD.all.Request))
+       and then
          (if TD.all.State = Request_Written
           then Valid_Request (TD.all.Request)));
 
@@ -232,10 +236,13 @@ is
 
    function Confirm_Handle_Predicate
      (TD : not null Transaction_Data_Access) return Boolean
-   is (TD.all.State = Confirm_Read
+   is (TD.all.State in Confirm_Read | Confirm_Cleaned
        and then TD.all.Cfm_Token /= null
-       and then Requires_Confirm (TD.all.Request)
-       and then Valid_Confirm (TD.all.Request, TD.all.Confirm));
+       and then
+         (if TD.all.State = Confirm_Read
+          then
+            Requires_Confirm (TD.all.Request)
+            and then Valid_Confirm (TD.all.Request, TD.all.Confirm)));
 
    -------------------------
    -- Has_Pending_Request --
@@ -352,16 +359,17 @@ is
    -------------------
 
    procedure Build_Request (Handle : in out Request_Handle) is
+      Temp : constant not null access Transaction_Data := Handle.TD;
    begin
       pragma Assert (Precondition);
 
-      Build (Handle.TD.all.Request);
+      Build (Temp.all.Request);
 
-      pragma Assert (Postcondition (Handle.TD.all.Request));
+      pragma Assert (Postcondition (Temp.all.Request));
 
-      pragma Assert (Valid_Request (Handle.TD.all.Request));
+      pragma Assert (Valid_Request (Temp.all.Request));
 
-      Handle.TD.all.State := Request_Written;
+      Temp.all.State := Request_Written;
    end Build_Request;
 
    ----------
@@ -403,8 +411,10 @@ is
    -------------
 
    procedure Cleanup (Handle : in out Confirm_Handle) is
+      Temp : constant not null access Transaction_Data := Handle.TD;
    begin
-      Clean (Handle.TD.all.Request, Handle.TD.all.Confirm);
+      Temp.all.State := Confirm_Cleaned;
+      Clean (Temp.all.Request, Temp.all.Confirm);
    end Cleanup;
 
    -------------------
