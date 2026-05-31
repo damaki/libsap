@@ -8,9 +8,24 @@ private with LibSAP.Singleton_Transaction_Queues;
 
 generic
    type Indication_Kind_Type is (<>);
+   --  Discrete type (e.g. enumeration) to distinguish between different kinds
+   --  of indications.
+   --
+   --  This is typically an enumeration of all the different kinds of
+   --  indications that can be sent through the SAP, but any discrete type will
+   --  also work.
 
    type Indication_Type is limited private;
+   --  The data type for indication primitives.
+   --
+   --  This type must be a definite, unconstrained type with default
+   --  initialization.
+
    type Response_Type is limited private;
+   --  The data type for response primitives.
+   --
+   --  This type must be a definite, unconstrained type with default
+   --  initialization.
 
    Queue_Capacity : Positive;
    --  Configures the maximum number of concurrent transactions
@@ -18,6 +33,11 @@ generic
    with
      function Indication_Kind
        (Indication : Indication_Type) return Indication_Kind_Type;
+   --  Returns the Kind of an indication.
+   --
+   --  This is used to distinguish between different kinds of indications.
+   --  For example, to distinguish between a CONNECT.ind and DATA.ind, which
+   --  may have different requirements around cleanup.
 
    with
      function Requires_Response (Indication : Indication_Type) return Boolean;
@@ -27,25 +47,61 @@ generic
    with
      function Indication_Requires_Cleanup
        (Indication : Indication_Type) return Boolean;
+   --  Returns True if the Indication object requires explicit cleanup before
+   --  it can be released at the end of the transaction.
+   --
+   --  This is intended for cases when the Indication contains a non-null
+   --  pointer field, in which case the pointer needs to be either freed or
+   --  moved before the transaction is completed.
+   --
+   --  If the Indication object never has ownership semantics, then this
+   --  function always returns False.
+   --
+   --  This must always return False for a default-initialized Indication_Type.
 
    with
      function Response_Requires_Cleanup
        (Response : Response_Type) return Boolean;
+   --  Returns True if the Response object requires explicit cleanup before
+   --  it can be released at the end of the transaction.
+   --
+   --  This is intended for cases when the Response contains a non-null pointer
+   --  field, in which case the pointer needs to be either freed or moved
+   --  before the transaction is completed.
+   --
+   --  If the Response object never has ownership semantics, then this function
+   --  always returns False.
+   --
+   --  This must always return False for a default-initialized Response_Type.
 
    with
      function Might_Require_Cleanup
        (Kind : Indication_Kind_Type) return Boolean;
-   --  Returns True if a Indication OR Response primitive of this kind might
+   --  Returns True if an Indication OR Response primitive of this Kind might
    --  require cleanup before they are freed at the end of a transaction.
+   --
+   --  This is intended for cases when certain kinds of indications (and/or
+   --  related response primitives) contain parameters that have ownership
+   --  semantics in SPARK (e.g. pointers).
+   --
+   --  This must return True if any indication primitive of type Kind, or
+   --  related response primitives, contain one or more parameters that have
+   --  ownership semantics. Otherwise, it should return False.
 
    with
      function Valid_Indication (Indication : Indication_Type) return Boolean;
    --  Returns True if the Indication object is valid
+   --
+   --  This can be used to validate the contents of an indication to ensure
+   --  that only well-formed indications are sent via the SAP.
 
    with
      function Valid_Response
        (Indication : Indication_Type; Response : Response_Type) return Boolean;
    --  Returns True if the Response object is valid for the given Indication
+   --
+   --  This can be used to validate the contents of a response primitive to
+   --  ensure that only valid responses are sent for an indication.
 
 package LibSAP.Light_User_Service_Access_Point with
     Elaborate_Body,

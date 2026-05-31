@@ -8,38 +8,93 @@ private with LibSAP.Singleton_Transaction_Queues;
 
 generic
    type Request_Kind_Type is (<>);
+   --  Discrete type (e.g. enumeration) to distinguish between different kinds
+   --  of requests.
+   --
+   --  This is typically an enumeration of all the different kinds of requests
+   --  that can be sent through the SAP, but any discrete type will also work.
 
    type Request_Type is limited private;
+   --  The data type for request primitives.
+   --
+   --  This type must be a definite, unconstrained type with default
+   --  initialization.
+
    type Confirm_Type is limited private;
+   --  The data type for confirm primitives.
+   --
+   --  This type must be a definite, unconstrained type with default
+   --  initialization.
 
    Queue_Capacity : Positive;
    --  Configures the maximum number of concurrent transactions
 
    with
      function Request_Kind (Request : Request_Type) return Request_Kind_Type;
+   --  Returns the Kind of a request.
+   --
+   --  This is used to distinguish between different kinds of requests.
+   --  For example, to distinguish between a CONNECT.req and DATA.req, which
+   --  may have different requirements around cleanup.
 
    with function Requires_Confirm (Request : Request_Type) return Boolean;
-   --  Returns true if the Request requires a confirm primitive to be sent in
-   --  response.
+   --  Returns True if the Request requires a confirm primitive to be sent in
+   --  response, or False otherwise.
 
    with
      function Request_Requires_Cleanup (Request : Request_Type) return Boolean;
+   --  Returns True if the Request object requires explicit cleanup before
+   --  it can be released at the end of the transaction.
+   --
+   --  This is intended for cases when the Request contains a non-null pointer
+   --  field, in which case the pointer needs to be either freed or moved
+   --  before the transaction is completed.
+   --
+   --  If the Request object never has ownership semantics, then this function
+   --  always returns False.
+   --
+   --  This must always return False for a default-initialized Request_Type.
 
    with
      function Confirm_Requires_Cleanup (Confirm : Confirm_Type) return Boolean;
+   --  Returns True if the Confirm object requires explicit cleanup before
+   --  it can be released at the end of the transaction.
+   --
+   --  This is intended for cases when the Confirm contains a non-null pointer
+   --  field, in which case the pointer needs to be either freed or moved
+   --  before the transaction is completed.
+   --
+   --  If the Confirm object never has ownership semantics, then this function
+   --  always returns False.
+   --
+   --  This must always return False for a default-initialized Confirm_Type.
 
    with
      function Might_Require_Cleanup (Kind : Request_Kind_Type) return Boolean;
-   --  Returns True if a Request OR Confirm primitive of this kind might
+   --  Returns True if a Request OR Confirm primitive of this Kind might
    --  require cleanup before they are freed at the end of a transaction.
+   --
+   --  This is intended for cases when certain kinds of requests (and/or
+   --  related confirm primitives) contain parameters that have ownership
+   --  semantics in SPARK (e.g. pointers).
+   --
+   --  This must return True if any request primitive of type Kind, or related
+   --  confirm primitives, contain one or more parameters that have ownership
+   --  semantics. Otherwise, it should return False.
 
    with function Valid_Request (Request : Request_Type) return Boolean;
    --  Returns True if the Request object is valid
+   --
+   --  This can be used to validate the contents of a request to ensure that
+   --  only well-formed requests are sent via the SAP.
 
    with
      function Valid_Confirm
        (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
    --  Returns True if the Confirm object is valid for the given Request
+   --
+   --  This can be used to validate the contents of a confirm primitive to
+   --  ensure that only valid confirmations are sent in response to a request.
 
 package LibSAP.Light_Provider_Service_Access_Point with
     Elaborate_Body,

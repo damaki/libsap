@@ -901,8 +901,8 @@ is
 
             Discarded_Promises_Pool.Retrieve (ID, Promise_Ptr);
 
-            --  This should never happen, since Retrieve is sequentially
-            --  consistent.
+            --  This should never happen, since Retrieve has acquire-release
+            --  semantics.
 
             pragma Assume (Promise_Ptr /= null);
 

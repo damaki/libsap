@@ -4,6 +4,8 @@
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
+private with LibSAP.Pointer_Queues;
+
 --  This is an internal package that implements the core message-passing
 --  mechanism between Service Providers and Service Users.
 --
@@ -17,8 +19,6 @@
 --  SPARK's ownership rules ensure that the pointer is not leaked at the end of
 --  its scope; the Service Provider and Service User must call the appropriate
 --  procedure to relinquish the handle back to the transaction queue.
-
-private with LibSAP.Pointer_Queues;
 
 private generic
    type Request_Kind_Type is (<>);
