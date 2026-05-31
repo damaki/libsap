@@ -25,6 +25,24 @@ generic
    --  primitive.
 
    with
+     function Indication_Requires_Cleanup
+       (Indication : Indication_Type) return Boolean;
+
+   with
+     function Response_Requires_Cleanup
+       (Response : Response_Type) return Boolean;
+
+   with
+     function Might_Require_Cleanup
+       (Kind : Indication_Kind_Type) return Boolean;
+   --  Returns True if a Indication OR Response primitive of this kind might
+   --  require cleanup before they are freed at the end of a transaction.
+
+   with
+     function Valid_Indication (Indication : Indication_Type) return Boolean;
+   --  Returns True if the Indication object is valid
+
+   with
      function Valid_Response
        (Indication : Indication_Type; Response : Response_Type) return Boolean;
    --  Returns True if the Response object is valid for the given Indication
@@ -38,6 +56,11 @@ is
 
    function Always_True
      (Indication : Indication_Type with Unreferenced) return Boolean
+   is (True);
+
+   function Always_True
+     (Indication : Indication_Type with Unreferenced;
+      Response   : Response_Type with Unreferenced) return Boolean
    is (True);
 
    ------------------------
@@ -71,8 +94,13 @@ is
        Requires_Response'Result
        = Requires_Response (Indication_Reference (Handle).all);
 
-   function Indication_Ready (Handle : Indication_Handle) return Boolean
-   with Global => null, Pre => not Is_Null (Handle);
+   function Indication_Written (Handle : Indication_Handle) return Boolean
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       (if Indication_Written'Result
+        then Valid_Indication (Indication_Reference (Handle).all));
 
    function Indication_Kind
      (Handle : Indication_Handle) return Indication_Kind_Type
@@ -93,7 +121,7 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Response (Target) = Requires_Response (Source)'Old)
-       and (Indication_Ready (Target) = Indication_Ready (Source)'Old)
+       and (Indication_Written (Target) = Indication_Written (Source)'Old)
        and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
 
    generic
@@ -104,10 +132,13 @@ is
         is Always_True;
    procedure Build_Indication (Handle : in out Indication_Handle)
    with
-     Pre  => not Is_Null (Handle) and then Precondition,
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition
+       and then not Indication_Written (Handle),
      Post =>
        not Is_Null (Handle)
-       and Indication_Ready (Handle)
+       and Indication_Written (Handle)
        and Postcondition (Indication_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Write an indication primitive.
@@ -180,13 +211,7 @@ is
 
    function Response_Reference
      (Handle : Response_Handle) return not null access constant Response_Type
-   with
-     Inline,
-     Global => null,
-     Pre    => not Is_Null (Handle),
-     Post   =>
-       Valid_Response
-         (Indication_Reference (Handle).all, Response_Reference'Result.all);
+   with Inline, Global => null, Pre => not Is_Null (Handle);
 
    function Indication_Kind
      (Handle : Response_Handle) return Indication_Kind_Type
@@ -196,6 +221,15 @@ is
      Post   =>
        Indication_Kind'Result
        = Indication_Kind (Indication_Reference (Handle).all);
+
+   function Requires_Cleanup (Handle : Response_Handle) return Boolean
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Requires_Cleanup'Result
+       = (Indication_Requires_Cleanup (Indication_Reference (Handle).all)
+          or else Response_Requires_Cleanup (Response_Reference (Handle).all));
 
    procedure Move
      (Target : in out Response_Handle; Source : in out Response_Handle)
@@ -207,6 +241,38 @@ is
        (Is_Null (Target) = Is_Null (Source)'Old)
        and Is_Null (Source)
        and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
+
+   generic
+      with
+        procedure Clean
+          (Indication : in out Indication_Type;
+           Response   : in out Response_Type);
+
+      with
+        function Precondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
+
+      with
+        function Postcondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
+   procedure Cleanup (Handle : in out Response_Handle)
+   with
+     Inline,
+     Pre  =>
+       not Is_Null (Handle)
+       and then
+         Precondition
+           (Indication_Reference (Handle).all,
+            Response_Reference (Handle).all),
+     Post =>
+       not Is_Null (Handle)
+       and then
+         Postcondition
+           (Indication_Reference (Handle).all, Response_Reference (Handle).all)
+       and then
+         not Indication_Requires_Cleanup (Indication_Reference (Handle).all);
 
    ---------------------
    -- Service Handles --
@@ -242,8 +308,20 @@ is
        Requires_Response'Result
        = Requires_Response (Indication_Reference (Handle).all);
 
-   function Has_Valid_Response (Handle : Service_Handle) return Boolean
+   function Indication_Consumed (Handle : Service_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
+
+   function Response_Written (Handle : Service_Handle) return Boolean
+   with Global => null, Pre => not Is_Null (Handle);
+
+   function Response_Reference
+     (Handle : Service_Handle) return not null access constant Response_Type
+   with
+     Global => null,
+     Pre    =>
+       not Is_Null (Handle)
+       and then Response_Written (Handle)
+       and then Requires_Response (Handle);
 
    procedure Move
      (Target : in out Service_Handle; Source : in out Service_Handle)
@@ -255,7 +333,8 @@ is
        and Is_Null (Source)
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Response (Target) = Requires_Response (Source)'Old)
-       and (Has_Valid_Response (Target) = Has_Valid_Response (Source)'Old)
+       and (Response_Written (Target) = Response_Written (Source)'Old)
+       and (Indication_Consumed (Target) = Indication_Consumed (Source)'Old)
        and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
 
    ---------------------------------
@@ -267,7 +346,13 @@ is
      Inline,
      Global => (In_Out => Transaction_Pool),
      Pre    => Is_Null (Handle),
-     Post   => (if not Is_Null (Handle) then not Indication_Ready (Handle));
+     Post   =>
+       (if not Is_Null (Handle)
+        then
+          not Indication_Written (Handle)
+          and then
+            not Indication_Requires_Cleanup
+                  (Indication_Reference (Handle).all));
    --  Try to allocate a new indication object.
    --
    --  If there is enough free resources for a new transaction, then one is
@@ -284,7 +369,7 @@ is
      Pre            =>
        not Is_Null (Handle)
        and then Is_Null (Promise)
-       and then Indication_Ready (Handle),
+       and then Indication_Written (Handle),
      Post           => Is_Null (Handle),
      Contract_Cases =>
        (Requires_Response (Handle) =>
@@ -300,7 +385,10 @@ is
    with
      Inline,
      Global => (In_Out => Transaction_Pool),
-     Pre    => not Is_Null (Handle),
+     Pre    =>
+       not Is_Null (Handle)
+       and then
+         not Indication_Requires_Cleanup (Indication_Reference (Handle).all),
      Post   => Is_Null (Handle);
    --  Abort a indication.
    --
@@ -313,6 +401,7 @@ is
    with
      Inline,
      Global => (In_Out => Transaction_Pool),
+     Pre    => not Might_Require_Cleanup (Indication_Kind (Promise)),
      Post   => Is_Null (Promise);
    --  Discard a response promise.
    --
@@ -341,7 +430,13 @@ is
          (if not Is_Null (Handle)
           then Indication_Kind (Handle)
           else Indication_Kind (Promise))
-         = Indication_Kind (Promise)'Old;
+         = Indication_Kind (Promise)'Old
+       and
+         (if not Is_Null (Handle)
+          then
+            Valid_Response
+              (Indication_Reference (Handle).all,
+               Response_Reference (Handle).all));
    --  Try to get the pending response primitive from a Promise.
    --
    --  If the pending response primitive has been sent by the Service User,
@@ -355,7 +450,7 @@ is
    with
      Inline,
      Global => (In_Out => Transaction_Pool),
-     Pre    => not Is_Null (Handle),
+     Pre    => not Is_Null (Handle) and then not Requires_Cleanup (Handle),
      Post   => Is_Null (Handle);
    --  Release a response handle.
    --
@@ -369,7 +464,10 @@ is
       Ind_Handle : in out Indication_Handle)
    with
      Global => null,
-     Pre    => not Is_Null (Res_Handle) and then Is_Null (Ind_Handle),
+     Pre    =>
+       not Is_Null (Res_Handle)
+       and then Is_Null (Ind_Handle)
+       and then not Requires_Cleanup (Res_Handle),
      Post   =>
        not Is_Null (Ind_Handle)
        and Is_Null (Res_Handle)
@@ -390,10 +488,18 @@ is
    with Global => (Input => Transaction_Queue);
 
    procedure Try_Get_Next_Indication (Handle : in out Service_Handle)
-   with Global => (In_Out => Transaction_Queue), Pre => Is_Null (Handle);
+   with
+     Global => (In_Out => Transaction_Queue),
+     Pre    => Is_Null (Handle),
+     Post   =>
+       (if not Is_Null (Handle)
+        then
+          Valid_Indication (Indication_Reference (Handle).all)
+          and then not Response_Written (Handle)
+          and then not Indication_Consumed (Handle));
    --  Try to get the next pending request
 
-   procedure Indication_Completed (Handle : in out Service_Handle)
+   procedure Release (Handle : in out Service_Handle)
    with
      Global => (In_Out => Transaction_Pool),
      Pre    => not Is_Null (Handle) and then not Requires_Response (Handle),
@@ -411,8 +517,8 @@ is
      Global => (In_Out => Transaction_Pool),
      Pre    =>
        not Is_Null (Handle)
-       and then Requires_Response (Handle)
-       and then Has_Valid_Response (Handle),
+       and then Response_Written (Handle)
+       and then Requires_Response (Handle),
      Post   => Is_Null (Handle);
    --  Send a response primitive to a Service Provider.
    --
@@ -429,14 +535,29 @@ is
       with
         procedure Process_Indication_With_Response
           (Indication : Indication_Type; Response : out Response_Type);
+
+      with function Precondition return Boolean is Always_True;
+
+      with
+        function Postcondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
    procedure Process_Indication (Handle : in out Service_Handle)
    with
-     Pre  => not Is_Null (Handle),
+     Pre  => not Is_Null (Handle) and then Precondition,
      Post =>
        not Is_Null (Handle)
        and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
-       and (if Requires_Response (Handle) then Has_Valid_Response (Handle))
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
+       and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         (if Requires_Response (Handle)'Old
+          then
+            Response_Written (Handle)
+            and then
+              Postcondition
+                (Indication_Reference (Handle).all,
+                 Response_Reference (Handle).all));
    --  Process an indication, and generate a response if one is required.
    --
    --  This procedure passes the indication to either
@@ -447,30 +568,117 @@ is
       with
         procedure Build
           (Indication : Indication_Type; Response : out Response_Type);
+
+      with function Precondition return Boolean is Always_True;
+
+      with
+        function Postcondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
    procedure Build_Response (Handle : in out Service_Handle)
    with
-     Pre  => not Is_Null (Handle) and then Requires_Response (Handle),
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition
+       and then Requires_Response (Handle),
      Post =>
        not Is_Null (Handle)
        and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
-       and Has_Valid_Response (Handle)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old);
+       and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
+       and Response_Written (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         Postcondition
+           (Indication_Reference (Handle).all,
+            Response_Reference (Handle).all);
    --  Builds a response primitive.
    --
    --  The response primitive is passed to the Build procedure, which writes
    --  to it.
 
+   generic
+      with procedure Consume (Indication : in out Indication_Type);
+      with function Precondition return Boolean;
+      with
+        function Postcondition (Indication : Indication_Type) return Boolean;
+   procedure Consume_Indication (Handle : in out Service_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then not Indication_Consumed (Handle)
+       and then Precondition,
+     Post =>
+       not Is_Null (Handle)
+       and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
+       and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
+       and Indication_Consumed (Handle)
+       and Postcondition (Indication_Reference (Handle).all);
+   --  Modify an indication object.
+   --
+   --  The purpose of this procedure is to provide a way to "consume" data from
+   --  the indication object by modifying some fields of the indication.
+   --  For example, to take ownership over a pointer field in the indication,
+   --  which requires setting it to null in the process.
+   --
+   --  The Consume general formal procedure must not modify the Indication_Kind
+   --  or Requires_Response properties on the indication, and this must be
+   --  specified in the postcondition for Consume.
+
+   generic
+      with
+        procedure Build
+          (Indication : in out Indication_Type; Response : out Response_Type);
+
+      with
+        function Precondition (Indication : Indication_Type) return Boolean
+        is Always_True;
+
+      with
+        function Postcondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
+   procedure Consume_Indication_And_Build_Response
+     (Handle : in out Service_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then not Indication_Consumed (Handle)
+       and then not Response_Written (Handle)
+       and then Precondition (Indication_Reference (Handle).all)
+       and then Requires_Response (Handle),
+     Post =>
+       not Is_Null (Handle)
+       and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
+       and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
+       and Response_Written (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         Postcondition
+           (Indication_Reference (Handle).all,
+            Response_Reference (Handle).all);
+   --  Build a Response primitive with the ability to consume data from the
+   --  Indication primitive.
+   --
+   --  This is intended for use with primitives that have ownership semantics.
+   --  It allows pointer values in the Indication primitive to be moved
+   --  elsewhere, which requires the ability to write to the request to set the
+   --  pointer to null.
+
 private
 
    package STQ is new
      LibSAP.Singleton_Transaction_Queues
-       (Request_Kind_Type => Indication_Kind_Type,
-        Request_Type      => Indication_Type,
-        Confirm_Type      => Response_Type,
-        Queue_Capacity    => Queue_Capacity,
-        Request_Kind      => Indication_Kind,
-        Requires_Confirm  => Requires_Response,
-        Valid_Confirm     => Valid_Response);
+       (Request_Kind_Type        => Indication_Kind_Type,
+        Request_Type             => Indication_Type,
+        Confirm_Type             => Response_Type,
+        Queue_Capacity           => Queue_Capacity,
+        Request_Kind             => Indication_Kind,
+        Requires_Confirm         => Requires_Response,
+        Request_Requires_Cleanup => Indication_Requires_Cleanup,
+        Confirm_Requires_Cleanup => Response_Requires_Cleanup,
+        Might_Require_Cleanup    => Might_Require_Cleanup,
+        Valid_Request            => Valid_Indication,
+        Valid_Confirm            => Valid_Response);
    pragma Part_Of (Transaction_Pool);
 
    type Indication_Handle is limited record
@@ -541,11 +749,25 @@ private
      (Handle : Service_Handle) return Indication_Kind_Type
    is (STQ.Request_Kind (Handle.Handle));
 
-   -------------------
-   -- Indication_Ready --
-   -------------------
+   ----------------------
+   -- Requires_Cleanup --
+   ----------------------
 
-   function Indication_Ready (Handle : Indication_Handle) return Boolean
-   is (STQ.Request_Ready (Handle.Handle));
+   function Requires_Cleanup (Handle : Response_Handle) return Boolean
+   is (STQ.Requires_Cleanup (Handle.Handle));
+
+   ------------------------
+   -- Indication_Written --
+   ------------------------
+
+   function Indication_Written (Handle : Indication_Handle) return Boolean
+   is (STQ.Request_Written (Handle.Handle));
+
+   -------------------------
+   -- Indication_Consumed --
+   -------------------------
+
+   function Indication_Consumed (Handle : Service_Handle) return Boolean
+   is (STQ.Request_Consumed (Handle.Handle));
 
 end LibSAP.Light_User_Service_Access_Point;

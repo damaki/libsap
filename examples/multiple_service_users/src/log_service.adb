@@ -73,7 +73,7 @@ is
 
          SAP.Get_Next_Request (Handle);
          Ada.Text_IO.Put_Line (SAP.Request_Reference (Handle).all.Message);
-         SAP.Request_Completed (Handle);
+         SAP.Release (Handle);
       end loop;
    end Log_Task;
 

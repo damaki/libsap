@@ -23,9 +23,11 @@ is
       Request_Written,
       Request_Pending,
       Request_Read,
+      Request_Consumed,
       Confirm_Written,
       Confirm_Pending,
-      Confirm_Read);
+      Confirm_Read,
+      Confirm_Cleaned);
 
    type Transaction_Data (TID : Transaction_ID) is record
       Request   : aliased Request_Type;
@@ -50,7 +52,13 @@ is
        (if Free_Transaction_Data_Access /= null
         then
           Free_Transaction_Data_Access.all.State = Free
-          and then Free_Transaction_Data_Access.all.Cfm_Token /= null);
+          and then Free_Transaction_Data_Access.all.Cfm_Token /= null
+          and then
+            not Request_Requires_Cleanup
+                  (Free_Transaction_Data_Access.all.Request)
+          and then
+            not Confirm_Requires_Cleanup
+                  (Free_Transaction_Data_Access.all.Confirm));
 
    package Free_Pool is new
      LibSAP.Pointer_Holders
@@ -123,6 +131,52 @@ is
 
    procedure Resolve_Discarded_Promise (ID : Transaction_ID);
 
+   ----------------------
+   -- Parameter_Checks --
+   ----------------------
+
+   package body Parameter_Checks is
+
+      ---------------------
+      -- Cleanup_Implied --
+      ---------------------
+
+      procedure Request_Cleanup_Implied (Request : Request_Type) is
+      begin
+         null;
+      end Request_Cleanup_Implied;
+
+      ------------------------
+      -- No_Cleanup_Implied --
+      ------------------------
+
+      procedure Request_No_Cleanup_Implied (Request : Request_Type) is
+      begin
+         null;
+      end Request_No_Cleanup_Implied;
+
+      -----------------------------
+      -- Confirm_Cleanup_Implied --
+      -----------------------------
+
+      procedure Confirm_Cleanup_Implied
+        (Request : Request_Type; Confirm : Confirm_Type) is
+      begin
+         null;
+      end Confirm_Cleanup_Implied;
+
+      --------------------------------
+      -- Confirm_No_Cleanup_Implied --
+      --------------------------------
+
+      procedure Confirm_No_Cleanup_Implied
+        (Request : Request_Type; Confirm : Confirm_Type) is
+      begin
+         null;
+      end Confirm_No_Cleanup_Implied;
+
+   end Parameter_Checks;
+
    -------------------------------
    -- Pending_Request_Predicate --
    -------------------------------
@@ -130,7 +184,9 @@ is
    function Pending_Request_Predicate
      (TD : not null Transaction_Data_Access) return Boolean
    is (TD.all.State = Request_Pending
-       and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request));
+       and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request)
+       and then not Confirm_Requires_Cleanup (TD.all.Confirm)
+       and then Valid_Request (TD.all.Request));
 
    ------------------------------
    -- Request_Handle_Predicate --
@@ -139,7 +195,14 @@ is
    function Request_Handle_Predicate
      (TD : not null Transaction_Data_Access) return Boolean
    is (TD.all.State in Request_Allocated | Request_Written
-       and then TD.all.Cfm_Token /= null);
+       and then TD.all.Cfm_Token /= null
+       and then not Confirm_Requires_Cleanup (TD.all.Confirm)
+       and then
+         (if TD.all.State = Request_Allocated
+          then not Request_Requires_Cleanup (TD.all.Request))
+       and then
+         (if TD.all.State = Request_Written
+          then Valid_Request (TD.all.Request)));
 
    ------------------------------
    -- Service_Handle_Predicate --
@@ -148,15 +211,29 @@ is
    function Service_Handle_Predicate
      (TD                 : not null Transaction_Data_Access;
       Fixed_Request_Kind : Request_Kind_Type) return Boolean
-   is (TD.all.State in Request_Read | Confirm_Written
+   is (TD.all.State in Request_Read | Request_Consumed | Confirm_Written
+
+       and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request)
+
+       and then
+         (if not Requires_Confirm (TD.all.Request)
+          then not Confirm_Requires_Cleanup (TD.all.Confirm))
+
+       and then
+         (if TD.all.State = Request_Read
+          then
+            Valid_Request (TD.all.Request)
+            and then not Confirm_Requires_Cleanup (TD.all.Confirm))
+
+       and then
+         (if TD.all.State = Request_Consumed
+          then not Confirm_Requires_Cleanup (TD.all.Confirm))
 
        and then
          (if TD.all.State = Confirm_Written
           then
             Requires_Confirm (TD.all.Request)
             and then Valid_Confirm (TD.all.Request, TD.all.Confirm))
-
-       and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request)
 
        and then Fixed_Request_Kind = Request_Kind (TD.all.Request));
 
@@ -166,10 +243,13 @@ is
 
    function Confirm_Handle_Predicate
      (TD : not null Transaction_Data_Access) return Boolean
-   is (TD.all.State = Confirm_Read
+   is (TD.all.State in Confirm_Read | Confirm_Cleaned
        and then TD.all.Cfm_Token /= null
-       and then Requires_Confirm (TD.all.Request)
-       and then Valid_Confirm (TD.all.Request, TD.all.Confirm));
+       and then
+         (if TD.all.State = Confirm_Read
+          then
+            Requires_Confirm (TD.all.Request)
+            and then Valid_Confirm (TD.all.Request, TD.all.Confirm)));
 
    -------------------------
    -- Has_Pending_Request --
@@ -210,6 +290,14 @@ is
    function Request_Kind (Handle : Service_Handle) return Request_Kind_Type
    is (Request_Kind (Handle.TD.all.Request));
 
+   ----------------------
+   -- Requires_Cleanup --
+   ----------------------
+
+   function Requires_Cleanup (Handle : Confirm_Handle) return Boolean
+   is (Request_Requires_Cleanup (Handle.TD.all.Request)
+       or else Confirm_Requires_Cleanup (Handle.TD.all.Confirm));
+
    -----------------------
    -- Request_Reference --
    -----------------------
@@ -244,33 +332,51 @@ is
    function Requires_Confirm (Handle : Service_Handle) return Boolean
    is (Requires_Confirm (Handle.TD.all.Request));
 
-   -------------------
-   -- Request_Ready --
-   -------------------
+   ---------------------
+   -- Request_Written --
+   ---------------------
 
-   function Request_Ready (Handle : Request_Handle) return Boolean
+   function Request_Written (Handle : Request_Handle) return Boolean
    is (Handle.TD.all.State = Request_Written);
 
+   ----------------------
+   -- Request_Consumed --
+   ----------------------
+
+   function Request_Consumed (Handle : Service_Handle) return Boolean
+   is (Handle.TD.all.State = Request_Consumed);
+
+   ---------------------
+   -- Confirm_Written --
+   ---------------------
+
+   function Confirm_Written (Handle : Service_Handle) return Boolean
+   is (Handle.TD.all.State = Confirm_Written);
+
    -----------------------
-   -- Has_Valid_Confirm --
+   -- Confirm_Reference --
    -----------------------
 
-   function Has_Valid_Confirm (Handle : Service_Handle) return Boolean
-   is (Handle.TD.all.State = Confirm_Written);
+   function Confirm_Reference
+     (Handle : Service_Handle) return not null access constant Confirm_Type
+   is (Handle.TD.all.Confirm'Access);
 
    -------------------
    -- Build_Request --
    -------------------
 
    procedure Build_Request (Handle : in out Request_Handle) is
+      Temp : constant not null access Transaction_Data := Handle.TD;
    begin
-      Handle.TD.all.State := Request_Written;
-
       pragma Assert (Precondition);
 
-      Build (Handle.TD.all.Request);
+      Build (Temp.all.Request);
 
-      pragma Assert (Postcondition (Handle.TD.all.Request));
+      pragma Assert (Postcondition (Temp.all.Request));
+
+      pragma Assert (Valid_Request (Temp.all.Request));
+
+      Temp.all.State := Request_Written;
    end Build_Request;
 
    ----------
@@ -307,6 +413,17 @@ is
       Source.TD := null;
    end Move;
 
+   -------------
+   -- Cleanup --
+   -------------
+
+   procedure Cleanup (Handle : in out Confirm_Handle) is
+      Temp : constant not null access Transaction_Data := Handle.TD;
+   begin
+      Temp.all.State := Confirm_Cleaned;
+      Clean (Temp.all.Request, Temp.all.Confirm);
+   end Cleanup;
+
    -------------------
    -- Build_Confirm --
    -------------------
@@ -320,6 +437,69 @@ is
 
       Handle.TD.all.State := Confirm_Written;
    end Build_Confirm;
+
+   ---------------------
+   -- Consume_Request --
+   ---------------------
+
+   procedure Consume_Request (Handle : in out Service_Handle) is
+      Request_Kind_Old : constant Request_Kind_Type := Request_Kind (Handle)
+      with Ghost;
+
+      Requires_Confirm_Old : constant Boolean := Requires_Confirm (Handle)
+      with Ghost;
+
+   begin
+      Handle.TD.all.State := Request_Consumed;
+      Consume (Handle.TD.all.Request);
+
+      --  The user-provided Consume function must not change the request Kind
+      --  nor in a way that it no longer requires a confirm.
+      --
+      --  If these assertions cannot be proved, then additional information
+      --  needs to be added to the postcondition of Consume to prove that
+      --  these properties are preserved.
+
+      pragma Assert (Request_Kind_Old = Request_Kind (Handle.TD.all.Request));
+
+      pragma
+        Assert
+          (Requires_Confirm_Old = Requires_Confirm (Handle.TD.all.Request));
+
+   end Consume_Request;
+
+   ---------------------------------------
+   -- Consume_Request_And_Build_Confirm --
+   ---------------------------------------
+
+   procedure Consume_Request_And_Build_Confirm (Handle : in out Service_Handle)
+   is
+      Request_Kind_Old : constant Request_Kind_Type := Request_Kind (Handle)
+      with Ghost;
+
+      Requires_Confirm_Old : constant Boolean := Requires_Confirm (Handle)
+      with Ghost;
+
+      Temp : constant not null access Transaction_Data := Handle.TD;
+   begin
+      Temp.all.State := Confirm_Written;
+      Build (Temp.all.Request, Temp.all.Confirm);
+
+      --  The user-provided Consume function must not change the request Kind
+      --  nor in a way that it no longer requires a confirm.
+      --
+      --  If these assertions cannot be proved, then additional information
+      --  needs to be added to the postcondition of Consume to prove that
+      --  these properties are preserved.
+
+      pragma Assert (Valid_Confirm (Temp.all.Request, Temp.all.Confirm));
+
+      pragma Assert (Request_Kind_Old = Request_Kind (Temp.all.Request));
+
+      pragma
+        Assert (Requires_Confirm_Old = Requires_Confirm (Temp.all.Request));
+
+   end Consume_Request_And_Build_Confirm;
 
    --------------------------
    -- Try_Allocate_Request --
@@ -472,11 +652,11 @@ is
       Resolve_Discarded_Promise (TID);
    end Send_Confirm;
 
-   -----------------------
-   -- Request_Completed --
-   -----------------------
+   -------------
+   -- Release --
+   -------------
 
-   procedure Request_Completed (Handle : in out Service_Handle) is
+   procedure Release (Handle : in out Service_Handle) is
       Temp     : Transaction_Data_Access;
       Free_Ptr : Free_Transaction_Data_Access;
    begin
@@ -489,7 +669,7 @@ is
       Store_In_Free_Pool (Free_Ptr);
 
       pragma Unreferenced (Free_Ptr);
-   end Request_Completed;
+   end Release;
 
    -------------
    -- Discard --
@@ -730,6 +910,20 @@ is
 
             if Promise_Ptr = null then
                raise Program_Error;
+            end if;
+
+            --  Confirm Promises can only be discarded if they never require
+            --  cleanup (see precondition of Discard), so it is not possible
+            --  to acquire a transaction that requires cleanup here.
+
+            pragma
+              Assume
+                (not Might_Require_Cleanup
+                       (Request_Kind (Pending_Ptr.all.Request)));
+
+            if Requires_Confirm (Pending_Ptr.all.Request) then
+               Parameter_Checks.Confirm_No_Cleanup_Implied
+                 (Pending_Ptr.all.Request, Pending_Ptr.all.Confirm);
             end if;
 
             Temp := Transaction_Data_Access (Pending_Ptr);

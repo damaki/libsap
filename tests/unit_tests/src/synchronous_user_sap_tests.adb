@@ -63,6 +63,22 @@ package body Synchronous_User_SAP_Tests is
    function Requires_Response (Indication : Indication_Type) return Boolean
    is (Indication.Kind = IND_1);
 
+   function Indication_Requires_Cleanup
+     (Indication : Indication_Type with Unreferenced) return Boolean
+   is (False);
+
+   function Response_Requires_Cleanup
+     (Response : Response_Type with Unreferenced) return Boolean
+   is (False);
+
+   function Might_Require_Cleanup
+     (Kind : Indication_Kind with Unreferenced) return Boolean
+   is (False);
+
+   function Valid_Indication
+     (Indication : Indication_Type with Unreferenced) return Boolean
+   is (True);
+
    function Valid_Response
      (Indication : Indication_Type; Response : Response_Type with Unreferenced)
       return Boolean
@@ -76,14 +92,18 @@ package body Synchronous_User_SAP_Tests is
 
    package Test_One_Normal_Transaction_SAP is new
      LibSAP.Synchronous_User_Service_Access_Point
-       (Indication_Kind_Type => Indication_Kind,
-        Indication_Type      => Indication_Type,
-        Response_Type        => Response_Type,
-        Queue_Capacity       => 3,
-        Priority             => System.Priority'Last,
-        Indication_Kind      => Get_Indication_Kind,
-        Requires_Response    => Requires_Response,
-        Valid_Response       => Valid_Response);
+       (Indication_Kind_Type        => Indication_Kind,
+        Indication_Type             => Indication_Type,
+        Response_Type               => Response_Type,
+        Queue_Capacity              => 3,
+        Priority                    => System.Priority'Last,
+        Indication_Kind             => Get_Indication_Kind,
+        Requires_Response           => Requires_Response,
+        Indication_Requires_Cleanup => Indication_Requires_Cleanup,
+        Response_Requires_Cleanup   => Response_Requires_Cleanup,
+        Might_Require_Cleanup       => Might_Require_Cleanup,
+        Valid_Indication            => Valid_Indication,
+        Valid_Response              => Valid_Response);
 
    procedure Test_One_Normal_Transaction (T : in out Test) is
       package SAP renames Test_One_Normal_Transaction_SAP;
@@ -160,14 +180,18 @@ package body Synchronous_User_SAP_Tests is
 
    package Test_Discard_Before_Response_Sent_SAP is new
      LibSAP.Synchronous_User_Service_Access_Point
-       (Indication_Kind_Type => Indication_Kind,
-        Indication_Type      => Indication_Type,
-        Response_Type        => Response_Type,
-        Queue_Capacity       => 3,
-        Priority             => System.Priority'Last,
-        Indication_Kind      => Get_Indication_Kind,
-        Requires_Response    => Requires_Response,
-        Valid_Response       => Valid_Response);
+       (Indication_Kind_Type        => Indication_Kind,
+        Indication_Type             => Indication_Type,
+        Response_Type               => Response_Type,
+        Queue_Capacity              => 3,
+        Priority                    => System.Priority'Last,
+        Indication_Kind             => Get_Indication_Kind,
+        Requires_Response           => Requires_Response,
+        Indication_Requires_Cleanup => Indication_Requires_Cleanup,
+        Response_Requires_Cleanup   => Response_Requires_Cleanup,
+        Might_Require_Cleanup       => Might_Require_Cleanup,
+        Valid_Indication            => Valid_Indication,
+        Valid_Response              => Valid_Response);
 
    procedure Test_Discard_Before_Response_Sent (T : in out Test) is
       package SAP renames Test_Discard_Before_Response_Sent_SAP;
@@ -271,14 +295,18 @@ package body Synchronous_User_SAP_Tests is
 
    package Test_Discard_After_Response_Sent_SAP is new
      LibSAP.Synchronous_User_Service_Access_Point
-       (Indication_Kind_Type => Indication_Kind,
-        Indication_Type      => Indication_Type,
-        Response_Type        => Response_Type,
-        Queue_Capacity       => 3,
-        Priority             => System.Priority'Last,
-        Indication_Kind      => Get_Indication_Kind,
-        Requires_Response    => Requires_Response,
-        Valid_Response       => Valid_Response);
+       (Indication_Kind_Type        => Indication_Kind,
+        Indication_Type             => Indication_Type,
+        Response_Type               => Response_Type,
+        Queue_Capacity              => 3,
+        Priority                    => System.Priority'Last,
+        Indication_Kind             => Get_Indication_Kind,
+        Requires_Response           => Requires_Response,
+        Indication_Requires_Cleanup => Indication_Requires_Cleanup,
+        Response_Requires_Cleanup   => Response_Requires_Cleanup,
+        Might_Require_Cleanup       => Might_Require_Cleanup,
+        Valid_Indication            => Valid_Indication,
+        Valid_Response              => Valid_Response);
 
    procedure Test_Discard_After_Response_Sent (T : in out Test) is
       package SAP renames Test_Discard_After_Response_Sent_SAP;

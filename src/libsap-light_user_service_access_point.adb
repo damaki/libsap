@@ -52,12 +52,20 @@ is
    function Requires_Response (Handle : Service_Handle) return Boolean
    is (STQ.Requires_Confirm (Handle.Handle));
 
+   ----------------------
+   -- Response_Written --
+   ----------------------
+
+   function Response_Written (Handle : Service_Handle) return Boolean
+   is (STQ.Confirm_Written (Handle.Handle));
+
    ------------------------
-   -- Has_Valid_Response --
+   -- Response_Reference --
    ------------------------
 
-   function Has_Valid_Response (Handle : Service_Handle) return Boolean
-   is (STQ.Has_Valid_Confirm (Handle.Handle));
+   function Response_Reference
+     (Handle : Service_Handle) return not null access constant Response_Type
+   is (STQ.Confirm_Reference (Handle.Handle));
 
    ----------
    -- Move --
@@ -86,6 +94,20 @@ is
    begin
       STQ.Move (Target => Target.Handle, Source => Source.Handle);
    end Move;
+
+   -------------
+   -- Cleanup --
+   -------------
+
+   procedure Cleanup (Handle : in out Response_Handle) is
+      procedure Cleanup_Wrapper is new
+        STQ.Cleanup
+          (Clean         => Clean,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Cleanup_Wrapper (Handle.Handle);
+   end Cleanup;
 
    ----------------------
    -- Abort_Indication --
@@ -154,14 +176,14 @@ is
       STQ.Try_Get_Next_Request (Queue, Handle.Handle);
    end Try_Get_Next_Indication;
 
-   --------------------------
-   -- Indication_Completed --
-   --------------------------
+   -------------
+   -- Release --
+   -------------
 
-   procedure Indication_Completed (Handle : in out Service_Handle) is
+   procedure Release (Handle : in out Service_Handle) is
    begin
-      STQ.Request_Completed (Handle.Handle);
-   end Indication_Completed;
+      STQ.Release (Handle.Handle);
+   end Release;
 
    -------------------
    -- Send_Response --
@@ -179,7 +201,10 @@ is
    procedure Process_Indication (Handle : in out Service_Handle) is
 
       procedure Process_Indication_With_Response_Wrapper is new
-        STQ.Build_Confirm (Process_Indication_With_Response);
+        STQ.Build_Confirm
+          (Build         => Process_Indication_With_Response,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
 
       Needs_Confirm : Boolean;
 
@@ -205,10 +230,43 @@ is
    --------------------
 
    procedure Build_Response (Handle : in out Service_Handle) is
-      procedure Build_Wrapper is new STQ.Build_Confirm (Build);
+      procedure Build_Wrapper is new STQ.Build_Confirm
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
    begin
       Build_Wrapper (Handle.Handle);
    end Build_Response;
+
+   ------------------------
+   -- Consume_Indication --
+   ------------------------
+
+   procedure Consume_Indication (Handle : in out Service_Handle) is
+      procedure Consume_Wrapper is new
+        STQ.Consume_Request
+          (Consume       => Consume,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Consume_Wrapper (Handle.Handle);
+   end Consume_Indication;
+
+   -------------------------------------------
+   -- Consume_Indication_And_Build_Response --
+   -------------------------------------------
+
+   procedure Consume_Indication_And_Build_Response
+     (Handle : in out Service_Handle)
+   is
+      procedure Build_Wrapper is new
+        STQ.Consume_Request_And_Build_Confirm
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Build_Wrapper (Handle.Handle);
+   end Consume_Indication_And_Build_Response;
 
    -------------
    -- Release --

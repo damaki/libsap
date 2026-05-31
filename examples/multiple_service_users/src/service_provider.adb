@@ -199,7 +199,7 @@ is
                CB.Notify_Confirm_Pending (TID);
             end loop;
          else
-            SAP.Request_Completed (Handle);
+            SAP.Release (Handle);
          end if;
 
       end loop;

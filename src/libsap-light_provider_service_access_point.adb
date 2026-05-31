@@ -51,12 +51,20 @@ is
    function Requires_Confirm (Handle : Service_Handle) return Boolean
    is (STQ.Requires_Confirm (Handle.Handle));
 
+   ---------------------
+   -- Confirm_Written --
+   ---------------------
+
+   function Confirm_Written (Handle : Service_Handle) return Boolean
+   is (STQ.Confirm_Written (Handle.Handle));
+
    -----------------------
-   -- Has_Valid_Confirm --
+   -- Confirm_Reference --
    -----------------------
 
-   function Has_Valid_Confirm (Handle : Service_Handle) return Boolean
-   is (STQ.Has_Valid_Confirm (Handle.Handle));
+   function Confirm_Reference
+     (Handle : Service_Handle) return not null access constant Confirm_Type
+   is (STQ.Confirm_Reference (Handle.Handle));
 
    ----------
    -- Move --
@@ -85,6 +93,20 @@ is
    begin
       STQ.Move (Target => Target.Handle, Source => Source.Handle);
    end Move;
+
+   -------------
+   -- Cleanup --
+   -------------
+
+   procedure Cleanup (Handle : in out Confirm_Handle) is
+      procedure Cleanup_Wrapper is new
+        STQ.Cleanup
+          (Clean         => Clean,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Cleanup_Wrapper (Handle.Handle);
+   end Cleanup;
 
    -------------------
    -- Abort_Request --
@@ -153,14 +175,14 @@ is
       STQ.Try_Get_Next_Request (Queue, Handle.Handle);
    end Try_Get_Next_Request;
 
-   -----------------------
-   -- Request_Completed --
-   -----------------------
+   -------------
+   -- Release --
+   -------------
 
-   procedure Request_Completed (Handle : in out Service_Handle) is
+   procedure Release (Handle : in out Service_Handle) is
    begin
-      STQ.Request_Completed (Handle.Handle);
-   end Request_Completed;
+      STQ.Release (Handle.Handle);
+   end Release;
 
    ------------------
    -- Send_Confirm --
@@ -178,7 +200,10 @@ is
    procedure Process_Request (Handle : in out Service_Handle) is
 
       procedure Process_Request_With_Confirm_Wrapper is new
-        STQ.Build_Confirm (Process_Request_With_Confirm);
+        STQ.Build_Confirm
+          (Build         => Process_Request_With_Confirm,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
 
       Needs_Confirm : Boolean;
 
@@ -204,10 +229,42 @@ is
    -------------------
 
    procedure Build_Confirm (Handle : in out Service_Handle) is
-      procedure Build_Wrapper is new STQ.Build_Confirm (Build);
+      procedure Build_Wrapper is new STQ.Build_Confirm
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
    begin
       Build_Wrapper (Handle.Handle);
    end Build_Confirm;
+
+   ---------------------
+   -- Consume_Request --
+   ---------------------
+
+   procedure Consume_Request (Handle : in out Service_Handle) is
+      procedure Consume_Wrapper is new
+        STQ.Consume_Request
+          (Consume       => Consume,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Consume_Wrapper (Handle.Handle);
+   end Consume_Request;
+
+   ---------------------------------------
+   -- Consume_Request_And_Build_Confirm --
+   ---------------------------------------
+
+   procedure Consume_Request_And_Build_Confirm (Handle : in out Service_Handle)
+   is
+      procedure Build_Wrapper is new
+        STQ.Consume_Request_And_Build_Confirm
+          (Build         => Build,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Build_Wrapper (Handle.Handle);
+   end Consume_Request_And_Build_Confirm;
 
    -------------
    -- Release --

@@ -81,6 +81,38 @@ is
    function Requires_Confirm (Request : Request_Type) return Boolean
    is (Request.Kind in ECHO_Req | INCREMENT_Req);
 
+   --  The following properties determine when a primitive requires explicit
+   --  clean up to release any held resources before the transaction is
+   --  completed.
+   --
+   --  It is intended for cases when primitives have ownership semantics
+   --  (e.g. they contain pointers), in which case an explicit cleanup is
+   --  needed to either free those resources or move them elsewhere.
+   --
+   --  This example does not use pointers, so there's no need for cleanup
+   --  and these functions all return False.
+
+   function Request_Requires_Cleanup
+     (Request : Request_Type with Unreferenced) return Boolean
+   is (False);
+
+   function Confirm_Requires_Cleanup
+     (Confirm : Confirm_Type with Unreferenced) return Boolean
+   is (False);
+
+   function Might_Require_Cleanup
+     (Kind : Request_Kind with Unreferenced) return Boolean
+   is (False);
+
+   --  Valid_Request is used to prove that a request contains valid data.
+   --
+   --  In this example there is no possibility of generating an invalid
+   --  request, so this always returns True.
+
+   function Valid_Request
+     (Request : Request_Type with Unreferenced) return Boolean
+   is (True);
+
    --  Valid_Confirm is used to check whether a confirm primitive is a correct
    --  response to a request primitive. In this example it is sufficient to
    --  simply check that the the message kind is correct, e.g. that a ECHO.cfm
@@ -106,14 +138,18 @@ is
 
    package SAP is new
      LibSAP.Synchronous_Provider_Service_Access_Point
-       (Request_Kind_Type => Request_Kind,
-        Request_Type      => Request_Type,
-        Confirm_Type      => Confirm_Type,
-        Request_Kind      => Get_Request_Kind,
-        Requires_Confirm  => Requires_Confirm,
-        Valid_Confirm     => Valid_Confirm,
-        Priority          => System.Priority'Last,
-        Queue_Capacity    => 1);
+       (Request_Kind_Type        => Request_Kind,
+        Request_Type             => Request_Type,
+        Confirm_Type             => Confirm_Type,
+        Request_Kind             => Get_Request_Kind,
+        Requires_Confirm         => Requires_Confirm,
+        Request_Requires_Cleanup => Request_Requires_Cleanup,
+        Confirm_Requires_Cleanup => Confirm_Requires_Cleanup,
+        Might_Require_Cleanup    => Might_Require_Cleanup,
+        Valid_Request            => Valid_Request,
+        Valid_Confirm            => Valid_Confirm,
+        Priority                 => System.Priority'Last,
+        Queue_Capacity           => 1);
 
    --  The SAP does not provide a mechanism to block (wait) for a confirm
    --  primitive to be posted for a specific transaction. Since this example

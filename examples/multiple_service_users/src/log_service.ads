@@ -45,6 +45,22 @@ is
      (Request : LOG_Req_Type with Unreferenced) return Boolean
    is (False);
 
+   function Request_Requires_Cleanup
+     (Request : LOG_Req_Type with Unreferenced) return Boolean
+   is (False);
+
+   function Confirm_Requires_Cleanup
+     (Confirm : Confirm_Type with Unreferenced) return Boolean
+   is (False);
+
+   function Might_Require_Cleanup
+     (Kind : Request_Kind with Unreferenced) return Boolean
+   is (False);
+
+   function Valid_Request
+     (Request : LOG_Req_Type with Unreferenced) return Boolean
+   is (True);
+
    function Valid_Confirm
      (Request : LOG_Req_Type with Unreferenced;
       Confirm : Confirm_Type with Unreferenced) return Boolean
@@ -52,14 +68,18 @@ is
 
    package SAP is new
      LibSAP.Synchronous_Provider_Service_Access_Point
-       (Request_Kind_Type => Request_Kind,
-        Request_Type      => LOG_Req_Type,
-        Confirm_Type      => Confirm_Type,
-        Request_Kind      => Get_Request_Kind,
-        Requires_Confirm  => Requires_Confirm,
-        Valid_Confirm     => Valid_Confirm,
-        Priority          => System.Priority'Last,
-        Queue_Capacity    => 20);
+       (Request_Kind_Type        => Request_Kind,
+        Request_Type             => LOG_Req_Type,
+        Confirm_Type             => Confirm_Type,
+        Request_Kind             => Get_Request_Kind,
+        Requires_Confirm         => Requires_Confirm,
+        Request_Requires_Cleanup => Request_Requires_Cleanup,
+        Confirm_Requires_Cleanup => Confirm_Requires_Cleanup,
+        Might_Require_Cleanup    => Might_Require_Cleanup,
+        Valid_Request            => Valid_Request,
+        Valid_Confirm            => Valid_Confirm,
+        Priority                 => System.Priority'Last,
+        Queue_Capacity           => 20);
 
    procedure Log_Message (Message : String)
    with
