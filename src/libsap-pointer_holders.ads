@@ -42,7 +42,7 @@ is
    --  If the pool did not contain an element at that position, then Element
    --  is set to null.
    --
-   --  This uses sequentially consistent memory order.
+   --  This uses acquire-release memory order.
 
    procedure Retrieve (ID : Element_ID; Element : out Element_Access)
    with
@@ -56,6 +56,6 @@ is
    --
    --  The slot in the pool is set to null.
    --
-   --  This uses sequentially consistent memory order.
+   --  This uses acquire-release memory order.
 
 end LibSAP.Pointer_Holders;
