@@ -435,6 +435,10 @@ is
         others                     => Is_Null (Promise));
    --  Send a prepared indication to the Service User.
    --
+   --  If the indication expects a response primitive to be sent back, then a
+   --  promise is given which is used to retrieve the response in the
+   --  future, once it has been sent by the Service User.
+   --
    --  This is a non-blocking operation.
 
    procedure Abort_Indication (Handle : in out Indication_Handle)
@@ -459,15 +463,12 @@ is
      Global => (In_Out => Transaction_Pool),
      Pre    => not Might_Require_Cleanup (Indication_Kind (Promise)),
      Post   => Is_Null (Promise);
-   --  Discard a response promise.
+   --  Releases resources associated with a promise that is no longer needed.
    --
-   --  This should be used if the Service Provider decides that they no longer
-   --  need the response to an indication.
-   --
-   --  Note that this does not prevent the Service User from seeing and
-   --  processing the indication, but rather ensures that any resources used
-   --  for the transaction are released when the Service User sends the
-   --  response.
+   --  This procedure immediately invalidates the promise handle, preventing
+   --  the caller from waiting on or retrieving the future value. It must only
+   --  be called on promises that do not require complex cleanup or
+   --  finalization.
 
    procedure Try_Get_Response
      (Handle : in out Response_Handle; Promise : in out Response_Promise)
@@ -542,6 +543,8 @@ is
 
    function Has_Pending_Indication return Boolean
    with Global => (Input => Transaction_Queue);
+   --  Returns True if there is at least one pending indication, or False
+   --  otherwise.
 
    procedure Try_Get_Next_Indication (Handle : in out Service_Handle)
    with
@@ -553,7 +556,8 @@ is
           Valid_Indication (Indication_Reference (Handle).all)
           and then not Response_Written (Handle)
           and then not Indication_Consumed (Handle));
-   --  Try to get the next pending request
+   --  Attempts to retrieve the next available service indication from the
+   --  global transaction queue.
 
    procedure Release (Handle : in out Service_Handle)
    with
@@ -562,11 +566,10 @@ is
      Post   => Is_Null (Handle);
    --  Release a service handle.
    --
-   --  This must be called when the Service Provider has finished processing an
-   --  indication that does not require a response primitive. This releases any
-   --  resources held by the handle.
+   --  This frees up all resources associated with a transaction.
    --
-   --  This is a non-blocking operation.
+   --  This is used when the Service User has finished processing an
+   --  indication that does not require a response.
 
    procedure Send_Response (Handle : in out Service_Handle)
    with

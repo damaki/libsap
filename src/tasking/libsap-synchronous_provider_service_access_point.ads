@@ -425,6 +425,10 @@ is
         others                    => Is_Null (Promise));
    --  Send a prepared request to the Service Provider.
    --
+   --  If the request expects a confirm primitive to be sent back, then a
+   --  promise is given which is used to retrieve the confirmation in the
+   --  future, once it has been sent by the Service Provider.
+   --
    --  This is a non-blocking operation.
 
    procedure Abort_Request (Handle : in out Request_Handle)
@@ -448,15 +452,12 @@ is
      Global => (In_Out => Transaction_Queue),
      Pre    => not Might_Require_Cleanup (Request_Kind (Promise)),
      Post   => Is_Null (Promise);
-   --  Discard a confirm promise.
+   --  Releases resources associated with a promise that is no longer needed.
    --
-   --  This should be used if the Service User decides that they no longer
-   --  need the confirmation to a request.
-   --
-   --  Note that this does not prevent the Service Provider from seeing and
-   --  processing the request, but rather ensures that any resources used for
-   --  the transaction are released when the Service Provider sends the
-   --  confirmation.
+   --  This procedure immediately invalidates the promise handle, preventing
+   --  the caller from waiting on or retrieving the future value. It must only
+   --  be called on promises that do not require complex cleanup or
+   --  finalization.
 
    procedure Try_Get_Confirm
      (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise)
@@ -530,6 +531,8 @@ is
 
    function Has_Pending_Request return Boolean
    with Global => (Input => Transaction_Queue), Volatile_Function;
+   --  Returns True if there is at least one pending request, or False
+   --  otherwise.
 
    procedure Get_Next_Request (Handle : in out Service_Handle)
    with
@@ -540,7 +543,8 @@ is
        and then Valid_Request (Request_Reference (Handle).all)
        and then not Confirm_Written (Handle)
        and then not Request_Consumed (Handle);
-   --  Wait for a request from a Service User.
+   --  Retrieves the next available service request from the global transaction
+   --  queue.
    --
    --  This is a potentially blocking operation.
 
@@ -554,7 +558,8 @@ is
           Valid_Request (Request_Reference (Handle).all)
           and then not Confirm_Written (Handle)
           and then not Request_Consumed (Handle));
-   --  Get the next request from a Service User, if one is currently pending.
+   --  Attempts to retrieve the next available service request from the global
+   --  transaction queue.
    --
    --  This is a non-blocking operation.
 

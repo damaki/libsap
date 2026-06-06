@@ -4,6 +4,8 @@
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
+--  @private
+--
 --  This package encapsulates an array of pointers, where each position in the
 --  array only holds pointers whose ID matches the index of the array.
 --

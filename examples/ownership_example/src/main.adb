@@ -17,8 +17,9 @@ pragma Unreferenced (Service_Provider);
 --  primitive, in which case it prints a message and then sends a response
 --  (.res) primitive if required.
 --
---  When a DATA.ind primitive is received, it performs a move of the pointer
---  parameter from the DATA.ind primitive to the DATA.res primitive.
+--  When a DATA.ind primitive is received, it moves ownership of the pointer
+--  parameter from the DATA.ind primitive to the DATA.res primitive and sends
+--  the response back to the Service Provider.
 
 procedure Main
 with
@@ -44,6 +45,16 @@ is
          Service_Provider.Valid_Indication
            (SP_SAP.Indication_Reference (Handle).all),
      Post => SP_SAP.Is_Null (Handle);
+   --  This procedure builds a DATA.res primitive in response to a received
+   --  DATA.ind primitive.
+   --
+   --  The Handle is the token that grants us access to the transaction.
+   --  It contains the received DATA.ind primitive, and allows us to write
+   --  the response.
+   --
+   --  The precondition requires that the Handle is a valid DATA.ind primitive,
+   --  and that the primitive has not been changed nor has a response been
+   --  written yet.
 
    -------------------
    -- Send_DATA_Res --
@@ -55,6 +66,11 @@ is
         (Indication : Service_Provider.Indication_Type) return Boolean
       is (Indication.Kind = DATA_Ind
           and then Service_Provider.Valid_Indication (Indication));
+      --  This is the precondition for Build_DATA_Res.
+      --
+      --  We define it as a separate function so that we can pass it as a
+      --  generic formal parameter to Consume_Indication_And_Build_Response
+      --  below.
 
       procedure Build_DATA_Res
         (Indication : in out Service_Provider.Indication_Type;
@@ -63,6 +79,11 @@ is
         Global => null,
         Pre    => Precondition (Indication),
         Post   => Service_Provider.Valid_Response (Indication, Response);
+      --  This is the closure that builds the DATA.res primitive.
+      --
+      --  It "consumes" the DATA.ind primitive to take ownership of the
+      --  pointer parameter in the DATA.ind and move it to the DATA.res
+      --  primitive.
 
       --------------------
       -- Build_DATA_Res --
@@ -72,8 +93,8 @@ is
         (Indication : in out Service_Provider.Indication_Type;
          Response   : out Service_Provider.Response_Type) is
       begin
-         --  In this example, we just move the pointer from the Indication
-         --  into the Response.
+         --  In this example, we just move ownership of the pointer from the
+         --  Indication to the Response.
 
          Response :=
            (Kind => DATA_Res, DATA_Res => (Data => Indication.DATA_Ind.Data));
@@ -99,7 +120,7 @@ begin
    loop
       pragma Loop_Invariant (SP_SAP.Is_Null (Handle));
 
-      --  Keep polling until we get a request.
+      --  Keep polling until we get an indication.
 
       loop
          pragma Loop_Invariant (SP_SAP.Is_Null (Handle));
@@ -108,13 +129,18 @@ begin
          delay 0.1;
       end loop;
 
-      --  Process the request and send a response if necessary.
+      --  Process the indication primitive and send a response if necessary.
 
       Ind_Kind := SP_SAP.Indication_Reference (Handle).all.Kind;
 
       case Ind_Kind is
          when START_Ind =>
             Ada.Text_IO.Put_Line ("[Service User] Received START.ind");
+
+            --  No response is needed for START.ind, so we can just release
+            --  the handle immediately to free up all resources associated
+            --  with the transaction.
+
             SP_SAP.Release (Handle);
 
          when DATA_Ind  =>

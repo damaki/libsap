@@ -413,6 +413,10 @@ is
           and (Request_Kind (Promise) = Request_Kind (Handle)'Old),
         others                    => Is_Null (Promise));
    --  Send a prepared request to the Service Provider.
+   --
+   --  If the request expects a confirm primitive to be sent back, then a
+   --  promise is given which is used to retrieve the confirmation in the
+   --  future, once it has been sent by the Service Provider.
 
    procedure Abort_Request (Handle : in out Request_Handle)
    with
@@ -433,15 +437,12 @@ is
      Global => (In_Out => Transaction_Pool),
      Pre    => not Might_Require_Cleanup (Request_Kind (Promise)),
      Post   => Is_Null (Promise);
-   --  Discard a confirm promise.
+   --  Releases resources associated with a promise that is no longer needed.
    --
-   --  This should be used if the Service User decides that they no longer
-   --  need the confirmation to a request.
-   --
-   --  Note that this does not prevent the Service Provider from seeing and
-   --  processing the request, but rather ensures that any resources used for
-   --  the transaction are released when the Service Provider sends the
-   --  confirmation.
+   --  This procedure immediately invalidates the promise handle, preventing
+   --  the caller from waiting on or retrieving the future value. It must only
+   --  be called on promises that do not require complex cleanup or
+   --  finalization.
 
    procedure Try_Get_Confirm
      (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise)
@@ -509,6 +510,8 @@ is
 
    function Has_Pending_Request return Boolean
    with Global => (Input => Transaction_Queue);
+   --  Returns True if there is at least one pending request, or False
+   --  otherwise.
 
    procedure Try_Get_Next_Request (Handle : in out Service_Handle)
    with
@@ -520,7 +523,8 @@ is
           Valid_Request (Request_Reference (Handle).all)
           and then not Confirm_Written (Handle)
           and then not Request_Consumed (Handle));
-   --  Try to get the next pending request
+   --  Attempts to retrieve the next available service request from the global
+   --  transaction queue.
 
    procedure Release (Handle : in out Service_Handle)
    with
@@ -529,9 +533,10 @@ is
      Post   => Is_Null (Handle);
    --  Release a service handle.
    --
-   --  This must be called when the Service Provider has finished processing a
-   --  request that does not require a confirm primitive in response. This
-   --  releases any resources held by the handle.
+   --  This frees up all resources associated with a transaction.
+   --
+   --  This is used when the Service Provider has finished processing a
+   --  request that does not require a confirmation.
 
    procedure Send_Confirm (Handle : in out Service_Handle)
    with
