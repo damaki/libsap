@@ -213,12 +213,21 @@ is
       Fixed_Request_Kind : Request_Kind_Type) return Boolean
    is (TD.all.State in Request_Read | Request_Consumed | Confirm_Written
 
+       --  The Cfm_Token is held by a Confirm_Promise if and only if the
+       --  request requires a confirmation.
        and then (TD.all.Cfm_Token = null) = Requires_Confirm (TD.all.Request)
 
+       --  The Confirm primitive is not used and remains in the cleaned up
+       --  state when the Request primitive does not require a confirmation.
        and then
          (if not Requires_Confirm (TD.all.Request)
           then not Confirm_Requires_Cleanup (TD.all.Confirm))
 
+       --  The Confirm primitive remains in the cleaned up state while the
+       --  request has been read, but neither the request nor confirm have
+       --  been modified yet (Request_Read state).
+       --
+       --  The request is also always valid while in this state.
        and then
          (if TD.all.State = Request_Read
           then
@@ -235,6 +244,7 @@ is
             Requires_Confirm (TD.all.Request)
             and then Valid_Confirm (TD.all.Request, TD.all.Confirm))
 
+       --  The request Kind never changes while held by a Service_Handle
        and then Fixed_Request_Kind = Request_Kind (TD.all.Request));
 
    ------------------------------

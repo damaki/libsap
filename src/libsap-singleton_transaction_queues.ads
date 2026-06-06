@@ -6,6 +6,8 @@
 
 private with LibSAP.Pointer_Queues;
 
+--  @private
+--
 --  This is an internal package that implements the core message-passing
 --  mechanism between Service Providers and Service Users.
 --

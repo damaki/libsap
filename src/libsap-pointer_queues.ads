@@ -4,6 +4,8 @@
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
+--  @private
+--
 --  This is a helper package that implements an extremely simple FIFO queue
 --  that holds pointers.
 
