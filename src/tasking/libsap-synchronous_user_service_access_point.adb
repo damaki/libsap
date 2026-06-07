@@ -308,6 +308,7 @@ is
      (Handle : in out Indication_Handle; Promise : in out Response_Promise) is
    begin
       Protected_Queue.Send_Indication (Handle.Handle, Promise.Handle);
+      Notify_Indication_Pending;
    end Send_Indication;
 
    ----------------------------
@@ -349,8 +350,10 @@ is
    -------------------
 
    procedure Send_Response (Handle : in out Service_Handle) is
+      TID : constant Transaction_ID := Get_TID (Handle);
    begin
       STQ.Send_Confirm (Handle.Handle);
+      Notify_Response_Pending (Positive (TID));
    end Send_Response;
 
    ------------------------

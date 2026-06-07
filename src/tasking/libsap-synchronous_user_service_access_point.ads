@@ -117,6 +117,22 @@ generic
    --  This can be used to validate the contents of a response primitive to
    --  ensure that only valid responses are sent for an indication.
 
+   with procedure Notify_Indication_Pending is null;
+   --  An optional procedure that is called when a new indication is queued.
+   --
+   --  The purpose of this procedure is to allow the Service User task
+   --  to be notified when a new indication is pending, e.g. unblocking the
+   --  task that is waiting on a protected entry.
+
+   with procedure Notify_Response_Pending (TID : Positive) is null;
+   --  An optional procedure that is called when a new response primitive is
+   --  pending.
+   --
+   --  The purpose of this procedure is to allow the Service User task
+   --  to be notified (by e.g. waking it up) when a new response is pending.
+   --
+   --  @param TID The ID of the transaction whose response has been posted.
+
    Priority : System.Priority;
    --  The ceiling priority of the transaction queue.
 
@@ -449,7 +465,6 @@ is
      (Handle : in out Indication_Handle; Promise : in out Response_Promise)
    with
      Inline,
-     Global         => (In_Out => Transaction_Queue),
      Pre            =>
        not Is_Null (Handle)
        and then Is_Null (Promise)

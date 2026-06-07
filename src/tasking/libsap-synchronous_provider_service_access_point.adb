@@ -307,6 +307,7 @@ is
      (Handle : in out Request_Handle; Promise : in out Confirm_Promise) is
    begin
       Protected_Queue.Send_Request (Handle.Handle, Promise.Handle);
+      Notify_Request_Pending;
    end Send_Request;
 
    -------------------------
@@ -348,8 +349,10 @@ is
    ------------------
 
    procedure Send_Confirm (Handle : in out Service_Handle) is
+      TID : constant Transaction_ID := Get_TID (Handle);
    begin
       STQ.Send_Confirm (Handle.Handle);
+      Notify_Confirm_Pending (Positive (TID));
    end Send_Confirm;
 
    ---------------------
