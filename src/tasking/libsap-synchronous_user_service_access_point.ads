@@ -8,6 +8,18 @@ with System;
 
 private with LibSAP.Singleton_Transaction_Queues;
 
+--  This package defines a Service Access Point (SAP) for transferring
+--  indication and response primitives between between a Service Provider and
+--  Service User.
+--
+--  Transactions are initiated by a Service Provider by sending an indication
+--  primitive. The Service User can then retrieve the indication, then send
+--  a response primitive back to the Service Provider if one is required by
+--  the original indication.
+--
+--  The primitives are transferred synchronously, so the SAP can be safely
+--  accessed by multiple tasks concurrently.
+
 generic
    type Indication_Kind_Type is (<>);
    --  Discrete type (e.g. enumeration) to distinguish between different kinds
