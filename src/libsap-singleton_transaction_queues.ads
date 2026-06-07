@@ -584,7 +584,10 @@ is
    procedure Release (Handle : in out Service_Handle)
    with
      Global => (In_Out => Transaction_Pool),
-     Pre    => not Is_Null (Handle) and then not Requires_Confirm (Handle),
+     Pre    =>
+       not Is_Null (Handle)
+       and then not Requires_Confirm (Handle)
+       and then not Request_Requires_Cleanup (Request_Reference (Handle).all),
      Post   => Is_Null (Handle);
 
 private

@@ -616,7 +616,11 @@ is
    procedure Release (Handle : in out Service_Handle)
    with
      Global => (In_Out => Transaction_Queue),
-     Pre    => not Is_Null (Handle) and then not Requires_Response (Handle),
+     Pre    =>
+       not Is_Null (Handle)
+       and then not Requires_Response (Handle)
+       and then
+         not Indication_Requires_Cleanup (Indication_Reference (Handle).all),
      Post   => Is_Null (Handle);
    --  Finalizes a transaction and releases all resources held by it.
    --
@@ -624,7 +628,7 @@ is
    --  an indication that does not require a response primitive.
    --
    --  Any cleanup required by the transaction must be done before calling
-   --  this procedure. See the generic procedure `Cleanup`.
+   --  this procedure. This can be done by using `Consume_Indication`.
    --
    --  This is a non-blocking operation.
 

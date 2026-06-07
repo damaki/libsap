@@ -557,7 +557,10 @@ is
    procedure Release (Handle : in out Service_Handle)
    with
      Global => (In_Out => Transaction_Pool),
-     Pre    => not Is_Null (Handle) and then not Requires_Confirm (Handle),
+     Pre    =>
+       not Is_Null (Handle)
+       and then not Requires_Confirm (Handle)
+       and then not Request_Requires_Cleanup (Request_Reference (Handle).all),
      Post   => Is_Null (Handle);
    --  Finalizes a transaction and releases all resources held by it.
    --
@@ -566,7 +569,7 @@ is
    --  response.
    --
    --  Any cleanup required by the transaction must be done before calling
-   --  this procedure. See the generic procedure `Cleanup`.
+   --  this procedure. This can be done by using `Consume_Request`.
 
    procedure Send_Confirm (Handle : in out Service_Handle)
    with
