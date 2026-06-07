@@ -192,16 +192,15 @@ is
        and Request_Written (Handle)
        and Postcondition (Request_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
-   --  Write a request primitive.
+   --  Builds the request payload for an active, unwritten transaction handle.
    --
-   --  The request object is passed to the Build generic formal procedure,
-   --  which does the actual write.
+   --  This procedure utilizes a generic callback (`Build`) to directly
+   --  populate the request object in place, supporting zero-copy message
+   --  passing.
    --
-   --  The Precondition can be used to express the information needed to prove
-   --  the precondition of Build.
-   --
-   --  Postcondition can be used to express information from Build's
-   --  postcondition that is needed after calling this function.
+   --  The Precondition and Postcondition generic formal functions are optional
+   --  proof bridge functions. They are used to pass verification context from
+   --  the caller to the call to the Build procedure.
 
    ---------------------
    -- Confirm Promise --
@@ -318,6 +317,17 @@ is
          Postcondition
            (Request_Reference (Handle).all, Confirm_Reference (Handle).all)
        and then not Request_Requires_Cleanup (Request_Reference (Handle).all);
+   --  Performs custom resource cleanup on an active transaction's primitives.
+   --
+   --  This procedure utilizes a generic callback (`Clean`) to safely extract,
+   --  deallocate, or move parameters with SPARK ownership semantics (e.g.,
+   --  pointers) out of the request and confirm primitives. This must occur
+   --  before the handle's memory can be safely recycled or freed back to the
+   --  SAP.
+   --
+   --  The Precondition and Postcondition generic formal functions are optional
+   --  proof bridge functions. They are used to pass verification context from
+   --  the caller to the call to the Build procedure.
 
    ---------------------
    -- Service Handles --
@@ -399,11 +409,10 @@ is
           not Request_Written (Handle)
           and then
             not Request_Requires_Cleanup (Request_Reference (Handle).all));
-   --  Try to allocate a new request object.
+   --  Attempts to allocate memory to initiate a new service transaction.
    --
-   --  If there is enough free resources for a new transaction, then one is
-   --  allocated and stored in the Handle. If there are no free resources, then
-   --  Handle is set to null.
+   --  If allocation is successful, the provided `Request_Handle` is populated,
+   --  granting exclusive write access to the transaction's request primitive.
    --
    --  This is a non-blocking operation.
 
@@ -423,11 +432,13 @@ is
           and (Get_TID (Promise) = Get_TID (Handle)'Old)
           and (Request_Kind (Promise) = Request_Kind (Handle)'Old),
         others                    => Is_Null (Promise));
-   --  Send a prepared request to the Service Provider.
+   --  Dispatches a prepared request primitive from the Service User to the
+   --  Service Provider via the global transaction queue.
    --
-   --  If the request expects a confirm primitive to be sent back, then a
-   --  promise is given which is used to retrieve the confirmation in the
-   --  future, once it has been sent by the Service Provider.
+   --  If the prepared request expects a confirm primitive to be sent in
+   --  response, then a `Confirm_Promise` is given which grants the caller
+   --  access to retrieve the confirm primitive in the future, once it has been
+   --  sent by the Service Provider.
    --
    --  This is a non-blocking operation.
 
@@ -439,10 +450,12 @@ is
        not Is_Null (Handle)
        and then not Request_Requires_Cleanup (Request_Reference (Handle).all),
      Post   => Is_Null (Handle);
-   --  Abort a request.
+   --  Abandons an allocated request transaction, reclaiming its resources
+   --  and releasing its memory back to the SAP without dispatching it.
    --
-   --  This frees up the resources held by Handle without sending the request
-   --  to the Service Provider.
+   --  This procedure acts as a cancellation mechanism in cases where the
+   --  caller allocates an request handle, but subsequently determines it
+   --  should not or cannot be sent.
    --
    --  This is a non-blocking operation.
 
@@ -454,10 +467,21 @@ is
      Post   => Is_Null (Promise);
    --  Releases resources associated with a promise that is no longer needed.
    --
+   --  This is intended for cases when the caller has sent a request that
+   --  expects a confirm primitive to be sent back in response, but the caller
+   --  does not care about reading the confirm primitive.
+   --
    --  This procedure immediately invalidates the promise handle, preventing
    --  the caller from waiting on or retrieving the future value. It must only
    --  be called on promises that do not require complex cleanup or
-   --  finalization.
+   --  finalization. If the transaction might require cleanup, then the caller
+   --  cannot discard the `Confirm_Promise` and must read the confirm and
+   --  perform any required cleanup before releasing the transaction.
+   --
+   --  Discarding a `Confirm_Promise` does not prevent the original request
+   --  from being processed by the Service Provider; it only causes the
+   --  transaction's resources to be automatically released when the Service
+   --  Provider sends the confirm primitive.
 
    procedure Try_Get_Confirm
      (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise)
@@ -483,12 +507,13 @@ is
             Valid_Confirm
               (Request_Reference (Handle).all,
                Confirm_Reference (Handle).all));
-   --  Try to get the pending confirm primitive from a Promise.
+   --  Attempt to get the pending confirm primitive associated with a
+   --  `Confirm_Promise`.
    --
-   --  If the pending confirm primitive has been sent by the Service Provider,
-   --  then Handle is set to hold a reference to the primitive and Promise is
-   --  set to null. Otherwise, if the Service has not yet sent the confirm
-   --  primitive, then both Handle and Promise are unchanged.
+   --  If the confirm primitive has been sent by the Service Provider, then
+   --  `Handle` is set to hold a reference to the primitive and `Promise` is
+   --  set to null. Otherwise, if the Service Provider has not yet sent the
+   --  confirm primitive, then both `Handle` and `Promise` are unchanged.
    --
    --  This is a non-blocking operation.
 
@@ -498,10 +523,13 @@ is
      Global => (In_Out => Transaction_Queue),
      Pre    => not Is_Null (Handle) and then not Requires_Cleanup (Handle),
      Post   => Is_Null (Handle);
-   --  Release a confirm handle.
+   --  Finalizes a transaction and releases all resources held by it.
    --
-   --  This must be called when the Service User has finished reading the
-   --  confirm primitive to reliquish the resources held by the handle.
+   --  This is called by the Service User at the end of the transaction
+   --  lifecycle; when the caller has finished processing a confirm primitive.
+   --
+   --  Any cleanup required by the transaction must be done before calling
+   --  this procedure. See the generic procedure `Cleanup`.
    --
    --  This is a non-blocking operation.
 
@@ -517,11 +545,11 @@ is
        not Is_Null (Req_Handle)
        and Is_Null (Cfm_Handle)
        and (Get_TID (Req_Handle) = Get_TID (Cfm_Handle)'Old);
-   --  Finish the transaction held by Cfm_Handle and begin a new transaction
-   --  in Req_Handle.
+   --  Recycles an existing, completed transaction to begin a new transaction.
    --
-   --  This is useful to begin a new request without needing to reallocate a
-   --  new handle.
+   --  This is equivalent to calling `Release` then `Try_Allocate_Request`, but
+   --  eliminates the possibility of allocation failure if another task jumps
+   --  in and steals the transaction resources between the two calls.
    --
    --  This is a non-blocking operation.
 
@@ -547,6 +575,9 @@ is
    --  queue.
    --
    --  This is a potentially blocking operation.
+   --
+   --  If no request is pending, then this procedure blocks until a request
+   --  is sent via `Send_Request`.
 
    procedure Try_Get_Next_Request (Handle : in out Service_Handle)
    with
@@ -558,8 +589,8 @@ is
           Valid_Request (Request_Reference (Handle).all)
           and then not Confirm_Written (Handle)
           and then not Request_Consumed (Handle));
-   --  Attempts to retrieve the next available service request from the global
-   --  transaction queue.
+   --  Attempts to retrieve the next available request primitive from the
+   --  global transaction queue.
    --
    --  This is a non-blocking operation.
 
@@ -568,13 +599,14 @@ is
      Global => (In_Out => Transaction_Queue),
      Pre    => not Is_Null (Handle) and then not Requires_Confirm (Handle),
      Post   => Is_Null (Handle);
-   --  Release a service handle.
+   --  Finalizes a transaction and releases all resources held by it.
    --
-   --  This must be called when the Service Provider has finished processing a
-   --  request that does not require a confirm primitive in response. This
-   --  releases any resources held by the handle.
+   --  This is called by the Service Provider when it has finished processing
+   --  a request that does not require a confirm primitive to be sent in
+   --  response.
    --
-   --  This is a non-blocking operation.
+   --  Any cleanup required by the transaction must be done before calling
+   --  this procedure. See the generic procedure `Cleanup`.
 
    procedure Send_Confirm (Handle : in out Service_Handle)
    with

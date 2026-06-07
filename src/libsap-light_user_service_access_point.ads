@@ -197,16 +197,16 @@ is
        and Indication_Written (Handle)
        and Postcondition (Indication_Reference (Handle).all)
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
-   --  Write an indication primitive.
+   --  Builds the indication payload for an active, unwritten transaction
+   --  handle.
    --
-   --  The indication object is passed to the Build generic formal procedure,
-   --  which does the actual write.
+   --  This procedure utilizes a generic callback (`Build`) to directly
+   --  populate the indication object in place, supporting zero-copy message
+   --  passing.
    --
-   --  The Precondition can be used to express the information needed to prove
-   --  the precondition of Build.
-   --
-   --  Postcondition can be used to express information from Build's
-   --  postcondition that is needed after calling this function.
+   --  The Precondition and Postcondition generic formal functions are optional
+   --  proof bridge functions. They are used to pass verification context from
+   --  the caller to the call to the Build procedure.
 
    ----------------------
    -- Response Promise --
@@ -329,6 +329,17 @@ is
            (Indication_Reference (Handle).all, Response_Reference (Handle).all)
        and then
          not Indication_Requires_Cleanup (Indication_Reference (Handle).all);
+   --  Performs custom resource cleanup on an active transaction's primitives.
+   --
+   --  This procedure utilizes a generic callback (`Clean`) to safely extract,
+   --  deallocate, or move parameters with SPARK ownership semantics (e.g.,
+   --  pointers) out of the indication and response primitives. This must occur
+   --  before the handle's memory can be safely recycled or freed back to the
+   --  SAP.
+   --
+   --  The Precondition and Postcondition generic formal functions are optional
+   --  proof bridge functions. They are used to pass verification context from
+   --  the caller to the call to the Build procedure.
 
    ---------------------
    -- Service Handles --
@@ -409,13 +420,11 @@ is
           and then
             not Indication_Requires_Cleanup
                   (Indication_Reference (Handle).all));
-   --  Try to allocate a new indication object.
+   --  Attempts to allocate memory to initiate a new service transaction.
    --
-   --  If there is enough free resources for a new transaction, then one is
-   --  allocated and stored in the Handle. If there are no free resources, then
-   --  Handle is set to null.
-   --
-   --  This is a non-blocking operation.
+   --  If allocation is successful, the provided `Indication_Handle` is
+   --  populated, granting exclusive write access to the transaction's
+   --  indication primitive.
 
    procedure Send_Indication
      (Handle : in out Indication_Handle; Promise : in out Response_Promise)
@@ -433,13 +442,13 @@ is
           and (Get_TID (Promise) = Get_TID (Handle)'Old)
           and (Indication_Kind (Promise) = Indication_Kind (Handle)'Old),
         others                     => Is_Null (Promise));
-   --  Send a prepared indication to the Service User.
+   --  Dispatches a prepared indication primitive from the Service Provider to
+   --  the Service User via the global transaction queue.
    --
-   --  If the indication expects a response primitive to be sent back, then a
-   --  promise is given which is used to retrieve the response in the
-   --  future, once it has been sent by the Service User.
-   --
-   --  This is a non-blocking operation.
+   --  If the prepared indication expects a response primitive, then a
+   --  `Response_Promise` is given which grants the caller access to retrieve
+   --  the response primitive in the future, once it has been sent by the
+   --  Service User.
 
    procedure Abort_Indication (Handle : in out Indication_Handle)
    with
@@ -450,12 +459,12 @@ is
        and then
          not Indication_Requires_Cleanup (Indication_Reference (Handle).all),
      Post   => Is_Null (Handle);
-   --  Abort a indication.
+   --  Abandons an allocated indication transaction, reclaiming its resources
+   --  and releasing its memory back to the SAP without dispatching it.
    --
-   --  This frees up the resources held by Handle without sending the
-   --  indication to the Service User.
-   --
-   --  This is a non-blocking operation.
+   --  This procedure acts as a cancellation mechanism in cases where the
+   --  caller allocates an indication handle, but subsequently determines it
+   --  should not or cannot be sent.
 
    procedure Discard (Promise : in out Response_Promise)
    with
@@ -465,10 +474,21 @@ is
      Post   => Is_Null (Promise);
    --  Releases resources associated with a promise that is no longer needed.
    --
+   --  This is intended for cases when the caller has sent an indication that
+   --  expects a response primitive to be sent back, but the caller does not
+   --  care about reading the response primitive.
+   --
    --  This procedure immediately invalidates the promise handle, preventing
    --  the caller from waiting on or retrieving the future value. It must only
    --  be called on promises that do not require complex cleanup or
-   --  finalization.
+   --  finalization. If the transaction might require cleanup, then the caller
+   --  cannot discard the `Response_Promise` and must read the response and
+   --  perform any required cleanup before releasing the transaction.
+   --
+   --  Discarding a `Response_Promise` does not prevent the original indication
+   --  from being processed by the Service User; it only causes the
+   --  transaction's resources to be automatically released when the Service
+   --  User sends the response primitive.
 
    procedure Try_Get_Response
      (Handle : in out Response_Handle; Promise : in out Response_Promise)
@@ -494,14 +514,13 @@ is
             Valid_Response
               (Indication_Reference (Handle).all,
                Response_Reference (Handle).all));
-   --  Try to get the pending response primitive from a Promise.
+   --  Attempt to get the pending response primitive associated with a
+   --  `Response_Promise`.
    --
-   --  If the pending response primitive has been sent by the Service User,
-   --  then Handle is set to hold a reference to the primitive and Promise is
+   --  If the response primitive has been sent by the Service User, then
+   --  `Handle` is set to hold a reference to the primitive and `Promise` is
    --  set to null. Otherwise, if the Service User has not yet sent the
-   --  response primitive, then both Handle and Promise are unchanged.
-   --
-   --  This is a non-blocking operation.
+   --  response primitive, then both `Handle` and `Promise` are unchanged.
 
    procedure Release (Handle : in out Response_Handle)
    with
@@ -509,10 +528,13 @@ is
      Global => (In_Out => Transaction_Pool),
      Pre    => not Is_Null (Handle) and then not Requires_Cleanup (Handle),
      Post   => Is_Null (Handle);
-   --  Release a response handle.
+   --  Finalizes a transaction and releases all resources held by it.
    --
-   --  This must be called when the Service Provider has finished reading the
-   --  response primitive to reliquish the resources held by the handle.
+   --  This is called by the Service User at the end of the transaction
+   --  lifecycle; when the caller has finished processing a response primitive.
+   --
+   --  Any cleanup required by the transaction must be done before calling
+   --  this procedure. See the generic procedure `Cleanup`.
    --
    --  This is a non-blocking operation.
 
@@ -529,11 +551,11 @@ is
        not Is_Null (Ind_Handle)
        and Is_Null (Res_Handle)
        and (Get_TID (Ind_Handle) = Get_TID (Res_Handle)'Old);
-   --  Finish the transaction held by Res_Handle and begin a new transaction
-   --  in Ind_Handle.
+   --  Recycles an existing, completed transaction to begin a new transaction.
    --
-   --  This is useful to begin a new indication without needing to reallocate a
-   --  new handle.
+   --  This is equivalent to calling `Release` then `Try_Allocate_Indication`,
+   --  but eliminates the possibility of allocation failure if another task
+   --  jumps in and steals the transaction resources between the two calls.
    --
    --  This is a non-blocking operation.
 
@@ -556,7 +578,7 @@ is
           Valid_Indication (Indication_Reference (Handle).all)
           and then not Response_Written (Handle)
           and then not Indication_Consumed (Handle));
-   --  Attempts to retrieve the next available service indication from the
+   --  Attempts to retrieve the next available indication primitive from the
    --  global transaction queue.
 
    procedure Release (Handle : in out Service_Handle)
@@ -564,12 +586,13 @@ is
      Global => (In_Out => Transaction_Pool),
      Pre    => not Is_Null (Handle) and then not Requires_Response (Handle),
      Post   => Is_Null (Handle);
-   --  Release a service handle.
+   --  Finalizes a transaction and releases all resources held by it.
    --
-   --  This frees up all resources associated with a transaction.
+   --  This is called by the Service User when it has finished processing
+   --  an indication that does not require a response primitive.
    --
-   --  This is used when the Service User has finished processing an
-   --  indication that does not require a response.
+   --  Any cleanup required by the transaction must be done before calling
+   --  this procedure. See the generic procedure `Cleanup`.
 
    procedure Send_Response (Handle : in out Service_Handle)
    with
