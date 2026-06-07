@@ -8,6 +8,17 @@ with System;
 
 private with LibSAP.Singleton_Transaction_Queues;
 
+--  This package defines a Service Access Point (SAP) for transferring request
+--  and confirm primitives between between a Service User and Service Provider.
+--
+--  Transactions are initiated by a Service User by sending an request
+--  primitive. The Service Provider can then retrieve the request, then send
+--  a confirm primitive back to the Service User if one is required by the
+--  original request.
+--
+--  The primitives are transferred synchronously, so the SAP can be safely
+--  accessed by multiple tasks concurrently.
+
 generic
    type Request_Kind_Type is (<>);
    --  Discrete type (e.g. enumeration) to distinguish between different kinds

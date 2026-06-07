@@ -6,6 +6,18 @@
 
 private with LibSAP.Singleton_Transaction_Queues;
 
+--  This package defines a Service Access Point (SAP) for transferring request
+--  and confirm primitives between between a Service User and Service Provider.
+--
+--  This package does not use any of Ada's tasking mechanisms and is compatible
+--  with the "light" GNAT runtime profile. It is therefore not safe to access
+--  the SAP from multiple tasks without additional protection.
+--
+--  Transactions are initiated by a Service User by sending an request
+--  primitive. The Service Provider can then retrieve the request, then send
+--  a confirm primitive back to the Service User if one is required by the
+--  original request.
+
 generic
    type Request_Kind_Type is (<>);
    --  Discrete type (e.g. enumeration) to distinguish between different kinds
