@@ -91,13 +91,13 @@ is
             Indication := (Kind => START_Ind);
          end Build_START_Ind;
 
-         procedure Build_Indication is new
-           SAP.Build_Indication
-             (Build         => Build_START_Ind,
+         procedure Initialize_Indication is new
+           SAP.Initialize_Indication
+             (Initialize    => Build_START_Ind,
               Postcondition => Postcondition);
 
       begin
-         Build_Indication (Handle);
+         Initialize_Indication (Handle);
          SAP.Send_Indication (Handle, Res_Promise);
       end;
 
@@ -150,14 +150,14 @@ is
             Data := null;
          end Build_DATA_Ind;
 
-         procedure Build_Indication is new
-           SAP.Build_Indication
-             (Build         => Build_DATA_Ind,
+         procedure Initialize_Indication is new
+           SAP.Initialize_Indication
+             (Initialize    => Build_DATA_Ind,
               Precondition  => Precondition,
               Postcondition => Postcondition);
 
       begin
-         Build_Indication (Handle);
+         Initialize_Indication (Handle);
          SAP.Send_Indication (Handle, Res_Promise);
       end;
 

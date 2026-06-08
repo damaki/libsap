@@ -53,9 +53,9 @@ is
               (Kind => ECHO_Req, ECHO_Req => (Value_To_Echo => Value_To_Echo));
          end Build_ECHO_Request;
 
-         procedure Build_Request is new
-           Service_Provider.SAP.Build_Request
-             (Build         => Build_ECHO_Request,
+         procedure Initialize_Request is new
+           Service_Provider.SAP.Initialize_Request
+             (Initialize    => Build_ECHO_Request,
               Postcondition => Is_ECHO_Req);
 
          Handle : Service_Provider.SAP.Request_Handle;
@@ -68,7 +68,7 @@ is
               ("[Service User" & SUID'Image & "] Failed to allocate request");
 
          else
-            Build_Request (Handle);
+            Initialize_Request (Handle);
 
             --  Tell our Confirm_Barrier to listen for confirmations for this
             --  transaction.

@@ -62,9 +62,9 @@ begin
            (Kind => ECHO_Req, ECHO_Req => (Value_To_Echo => Value_To_Echo));
       end Build_ECHO_Request;
 
-      procedure Build_Request is new
-        Service_Provider.SAP.Build_Request
-          (Build         => Build_ECHO_Request,
+      procedure Initialize_Request is new
+        Service_Provider.SAP.Initialize_Request
+          (Initialize    => Build_ECHO_Request,
            Postcondition => Is_ECHO_Req);
 
       Req_Handle : Service_Provider.SAP.Request_Handle;
@@ -77,7 +77,7 @@ begin
          return;
       end if;
 
-      Build_Request (Req_Handle);
+      Initialize_Request (Req_Handle);
       Service_Provider.SAP.Send_Request (Req_Handle, Cfm_Promise);
 
       pragma Unreferenced (Req_Handle);

@@ -377,7 +377,7 @@ Now we have everything we need to create a SAP:
 
 Sending a request consists of three steps:
 1. Call `Try_Allocate_Request` to allocate a new Request Handle.
-2. Call `Build_Request` to store the request via the handle.
+2. Call `Initialize_Request` to write the request via the handle.
 3. Call `Send_Request` to queue the request in the SAP.
 
 If the request requires the Service Provider to send back a confirmation, then
@@ -394,7 +394,7 @@ sequenceDiagram
     SAP->>RH: create
     SAP-->>-User:
 
-    User->>+RH: Build_Request
+    User->>+RH: Initialize_Request
 
     User->>+SAP: Send_Request
     destroy RH

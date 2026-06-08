@@ -37,7 +37,8 @@ is
         Pre            =>
           not STQ.Is_Null (Handle)
           and then STQ.Is_Null (Promise)
-          and then STQ.Request_Written (Handle),
+          and then STQ.Request_Written (Handle)
+          and then Valid_Indication (STQ.Request_Reference (Handle).all),
         Post           => STQ.Is_Null (Handle),
         Contract_Cases =>
           (STQ.Requires_Confirm (Handle) =>
@@ -286,19 +287,33 @@ is
       STQ.Try_Allocate_Request (Handle.Handle);
    end Try_Allocate_Indication;
 
-   ----------------------
-   -- Build_Indication --
-   ----------------------
+   ---------------------------
+   -- Initialize_Indication --
+   ---------------------------
 
-   procedure Build_Indication (Handle : in out Indication_Handle) is
-      procedure Build_Wrapper is new
-        STQ.Build_Request
-          (Build         => Build,
+   procedure Initialize_Indication (Handle : in out Indication_Handle) is
+      procedure Initialize_Wrapper is new
+        STQ.Initialize_Request
+          (Initialize    => Initialize,
            Precondition  => Precondition,
            Postcondition => Postcondition);
    begin
-      Build_Wrapper (Handle.Handle);
-   end Build_Indication;
+      Initialize_Wrapper (Handle.Handle);
+   end Initialize_Indication;
+
+   -----------------------
+   -- Update_Indication --
+   -----------------------
+
+   procedure Update_Indication (Handle : in out Indication_Handle) is
+      procedure Update_Wrapper is new
+        STQ.Update_Request
+          (Update        => Update,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Update_Wrapper (Handle.Handle);
+   end Update_Indication;
 
    ---------------------
    -- Send_Indication --

@@ -135,19 +135,33 @@ is
       STQ.Try_Allocate_Request (Handle.Handle);
    end Try_Allocate_Request;
 
-   -------------------
-   -- Build_Request --
-   -------------------
+   ------------------------
+   -- Initialize_Request --
+   ------------------------
 
-   procedure Build_Request (Handle : in out Request_Handle) is
-      procedure Build_Wrapper is new
-        STQ.Build_Request
-          (Build         => Build,
+   procedure Initialize_Request (Handle : in out Request_Handle) is
+      procedure Initialize_Wrapper is new
+        STQ.Initialize_Request
+          (Initialize         => Initialize,
            Precondition  => Precondition,
            Postcondition => Postcondition);
    begin
-      Build_Wrapper (Handle.Handle);
-   end Build_Request;
+      Initialize_Wrapper (Handle.Handle);
+   end Initialize_Request;
+
+   --------------------
+   -- Update_Request --
+   --------------------
+
+   procedure Update_Request (Handle : in out Request_Handle) is
+      procedure Update_Wrapper is new
+        STQ.Update_Request
+          (Update         => Update,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Update_Wrapper (Handle.Handle);
+   end Update_Request;
 
    ------------------
    -- Send_Request --

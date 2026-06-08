@@ -122,9 +122,9 @@ package body Synchronous_Provider_SAP_Tests is
             Request := (Kind => REQ_1, REQ_1 => (Value => 123));
          end Build;
 
-         procedure Build_Request is new SAP.Build_Request (Build);
+         procedure Initialize_Request is new SAP.Initialize_Request (Build);
       begin
-         Build_Request (Req_Handle);
+         Initialize_Request (Req_Handle);
       end;
 
       SAP.Send_Request (Req_Handle, Cfm_Promise);
@@ -215,9 +215,9 @@ package body Synchronous_Provider_SAP_Tests is
             Request := (Kind => REQ_1, REQ_1 => (Value => 123));
          end Build;
 
-         procedure Build_Request is new SAP.Build_Request (Build);
+         procedure Initialize_Request is new SAP.Initialize_Request (Build);
       begin
-         Build_Request (Req_Handle);
+         Initialize_Request (Req_Handle);
       end;
 
       SAP.Send_Request (Req_Handle, Cfm_Promise);
@@ -330,9 +330,9 @@ package body Synchronous_Provider_SAP_Tests is
             Request := (Kind => REQ_1, REQ_1 => (Value => 123));
          end Build;
 
-         procedure Build_Request is new SAP.Build_Request (Build);
+         procedure Initialize_Request is new SAP.Initialize_Request (Build);
       begin
-         Build_Request (Req_Handle);
+         Initialize_Request (Req_Handle);
       end;
 
       SAP.Send_Request (Req_Handle, Cfm_Promise);

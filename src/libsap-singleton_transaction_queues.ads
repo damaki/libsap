@@ -147,12 +147,7 @@ is
        = Requires_Confirm (Request_Reference (Handle).all);
 
    function Request_Written (Handle : Request_Handle) return Boolean
-   with
-     Global => null,
-     Pre    => not Is_Null (Handle),
-     Post   =>
-       (if Request_Written'Result
-        then Valid_Request (Request_Reference (Handle).all));
+   with Global => null, Pre => not Is_Null (Handle);
 
    function Request_Kind (Handle : Request_Handle) return Request_Kind_Type
    with
@@ -176,15 +171,31 @@ is
        and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    generic
-      with procedure Build (Request : out Request_Type);
+      with procedure Initialize (Request : out Request_Type);
       with function Precondition return Boolean;
       with function Postcondition (Request : Request_Type) return Boolean;
-   procedure Build_Request (Handle : in out Request_Handle)
+   procedure Initialize_Request (Handle : in out Request_Handle)
    with
      Pre  =>
        not Is_Null (Handle)
        and then Precondition
        and then not Request_Written (Handle),
+     Post =>
+       not Is_Null (Handle)
+       and Request_Written (Handle)
+       and Postcondition (Request_Reference (Handle).all)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
+
+   generic
+      with procedure Update (Request : in out Request_Type);
+      with function Precondition (Request : Request_Type) return Boolean;
+      with function Postcondition (Request : Request_Type) return Boolean;
+   procedure Update_Request (Handle : in out Request_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition (Request_Reference (Handle).all)
+       and then Request_Written (Handle),
      Post =>
        not Is_Null (Handle)
        and Request_Written (Handle)
@@ -496,7 +507,8 @@ is
      Pre            =>
        not Is_Null (Handle)
        and then Is_Null (Promise)
-       and then Request_Written (Handle),
+       and then Request_Written (Handle)
+       and then Valid_Request (Request_Reference (Handle).all),
      Post           => Is_Null (Handle) and Has_Pending_Request (Queue),
      Contract_Cases =>
        (Requires_Confirm (Handle) =>
