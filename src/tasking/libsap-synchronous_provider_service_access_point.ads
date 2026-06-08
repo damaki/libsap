@@ -183,10 +183,7 @@ is
    function Request_Written (Handle : Request_Handle) return Boolean
    with
      Global => null,
-     Pre    => not Is_Null (Handle),
-     Post   =>
-       (if Request_Written'Result
-        then Valid_Request (Request_Reference (Handle).all));
+     Pre    => not Is_Null (Handle);
 
    procedure Move
      (Target : in out Request_Handle; Source : in out Request_Handle)
@@ -202,13 +199,14 @@ is
        and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    generic
-      with procedure Build (Request : out Request_Type);
+      with procedure Initialize (Request : out Request_Type);
       with function Precondition return Boolean is Always_True;
       with
         function Postcondition (Request : Request_Type) return Boolean
         is Always_True;
-   procedure Build_Request (Handle : in out Request_Handle)
+   procedure Initialize_Request (Handle : in out Request_Handle)
    with
+     Inline,
      Pre  =>
        not Is_Null (Handle)
        and then Precondition
@@ -220,13 +218,39 @@ is
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Builds the request payload for an active, unwritten transaction handle.
    --
-   --  This procedure utilizes a generic callback (`Build`) to directly
+   --  This procedure utilizes a generic callback (`Initialize`) to directly
    --  populate the request object in place, supporting zero-copy message
    --  passing.
    --
    --  The Precondition and Postcondition generic formal functions are optional
    --  proof bridge functions. They are used to pass verification context from
-   --  the caller to the call to the Build procedure.
+   --  the caller to the call to the `Initialize` procedure.
+
+   generic
+      with procedure Update (Request : in out Request_Type);
+      with function Precondition (Request : Request_Type) return Boolean;
+      with function Postcondition (Request : Request_Type) return Boolean;
+   procedure Update_Request (Handle : in out Request_Handle)
+   with
+     Inline,
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition (Request_Reference (Handle).all)
+       and then Request_Written (Handle),
+     Post =>
+       not Is_Null (Handle)
+       and Request_Written (Handle)
+       and Postcondition (Request_Reference (Handle).all)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
+   --  Modifies a previously written request payload.
+   --
+   --  This procedure utilizes a generic callback (`Initialize`) to directly
+   --  update the request object in place, supporting zero-copy message
+   --  passing.
+   --
+   --  The Precondition and Postcondition generic formal functions are optional
+   --  proof bridge functions. They are used to pass verification context from
+   --  the caller to the call to the `Update` procedure.
 
    ---------------------
    -- Confirm Promise --
@@ -449,7 +473,8 @@ is
      Pre            =>
        not Is_Null (Handle)
        and then Is_Null (Promise)
-       and then Request_Written (Handle),
+       and then Request_Written (Handle)
+       and then Valid_Request (Request_Reference (Handle).all),
      Post           => Is_Null (Handle),
      Contract_Cases =>
        (Requires_Confirm (Handle) =>

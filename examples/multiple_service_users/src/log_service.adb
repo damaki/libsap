@@ -34,13 +34,13 @@ is
          Request := (Length => Message'Length, Message => Message);
       end Write_Message;
 
-      -------------------
-      -- Build_Request --
-      -------------------
+      ------------------------
+      -- Initialize_Request --
+      ------------------------
 
-      procedure Build_Request is new
-        SAP.Build_Request
-          (Build        => Write_Message,
+      procedure Initialize_Request is new
+        SAP.Initialize_Request
+          (Initialize        => Write_Message,
            Precondition => Message_Length_In_Range);
 
       Handle      : SAP.Request_Handle;
@@ -54,7 +54,7 @@ is
          exit when not SAP.Is_Null (Handle);
       end loop;
 
-      Build_Request (Handle);
+      Initialize_Request (Handle);
       SAP.Send_Request (Handle, Cfm_Promise);
 
       pragma Unreferenced (Handle);

@@ -120,9 +120,10 @@ package body Light_User_SAP_Tests is
             Indication := (Kind => IND_1, IND_1 => (Value => 123));
          end Build;
 
-         procedure Build_Indication is new SAP.Build_Indication (Build);
+         procedure Initialize_Indication is new
+           SAP.Initialize_Indication (Build);
       begin
-         Build_Indication (Ind_Handle);
+         Initialize_Indication (Ind_Handle);
       end;
 
       SAP.Send_Indication (Ind_Handle, Res_Promise);
@@ -212,9 +213,10 @@ package body Light_User_SAP_Tests is
             Indication := (Kind => IND_1, IND_1 => (Value => 123));
          end Build;
 
-         procedure Build_Indication is new SAP.Build_Indication (Build);
+         procedure Initialize_Indication is new
+           SAP.Initialize_Indication (Build);
       begin
-         Build_Indication (Req_Handle);
+         Initialize_Indication (Req_Handle);
       end;
 
       SAP.Send_Indication (Req_Handle, Cfm_Promise);
@@ -326,9 +328,10 @@ package body Light_User_SAP_Tests is
             Indication := (Kind => IND_1, IND_1 => (Value => 123));
          end Build;
 
-         procedure Build_Indication is new SAP.Build_Indication (Build);
+         procedure Initialize_Indication is new
+           SAP.Initialize_Indication (Build);
       begin
-         Build_Indication (Req_Handle);
+         Initialize_Indication (Req_Handle);
       end;
 
       SAP.Send_Indication (Req_Handle, Cfm_Promise);

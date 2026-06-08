@@ -199,10 +199,7 @@ is
        and then not Confirm_Requires_Cleanup (TD.all.Confirm)
        and then
          (if TD.all.State = Request_Allocated
-          then not Request_Requires_Cleanup (TD.all.Request))
-       and then
-         (if TD.all.State = Request_Written
-          then Valid_Request (TD.all.Request)));
+          then not Request_Requires_Cleanup (TD.all.Request)));
 
    ------------------------------
    -- Service_Handle_Predicate --
@@ -371,23 +368,25 @@ is
      (Handle : Service_Handle) return not null access constant Confirm_Type
    is (Handle.TD.all.Confirm'Access);
 
-   -------------------
-   -- Build_Request --
-   -------------------
+   ------------------------
+   -- Initialize_Request --
+   ------------------------
 
-   procedure Build_Request (Handle : in out Request_Handle) is
+   procedure Initialize_Request (Handle : in out Request_Handle) is
       Temp : constant not null access Transaction_Data := Handle.TD;
    begin
-      pragma Assert (Precondition);
-
-      Build (Temp.all.Request);
-
-      pragma Assert (Postcondition (Temp.all.Request));
-
-      pragma Assert (Valid_Request (Temp.all.Request));
-
+      Initialize (Temp.all.Request);
       Temp.all.State := Request_Written;
-   end Build_Request;
+   end Initialize_Request;
+
+   --------------------
+   -- Update_Request --
+   --------------------
+
+   procedure Update_Request (Handle : in out Request_Handle) is
+   begin
+      Update (Handle.TD.all.Request);
+   end Update_Request;
 
    ----------
    -- Move --

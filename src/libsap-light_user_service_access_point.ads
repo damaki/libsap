@@ -166,10 +166,7 @@ is
    function Indication_Written (Handle : Indication_Handle) return Boolean
    with
      Global => null,
-     Pre    => not Is_Null (Handle),
-     Post   =>
-       (if Indication_Written'Result
-        then Valid_Indication (Indication_Reference (Handle).all));
+     Pre    => not Is_Null (Handle);
 
    function Indication_Kind
      (Handle : Indication_Handle) return Indication_Kind_Type
@@ -194,13 +191,14 @@ is
        and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
 
    generic
-      with procedure Build (Indication : out Indication_Type);
+      with procedure Initialize (Indication : out Indication_Type);
       with function Precondition return Boolean is Always_True;
       with
         function Postcondition (Indication : Indication_Type) return Boolean
         is Always_True;
-   procedure Build_Indication (Handle : in out Indication_Handle)
+   procedure Initialize_Indication (Handle : in out Indication_Handle)
    with
+     Inline,
      Pre  =>
        not Is_Null (Handle)
        and then Precondition
@@ -213,13 +211,42 @@ is
    --  Builds the indication payload for an active, unwritten transaction
    --  handle.
    --
-   --  This procedure utilizes a generic callback (`Build`) to directly
+   --  This procedure utilizes a generic callback (`Initialize`) to directly
    --  populate the indication object in place, supporting zero-copy message
    --  passing.
    --
    --  The Precondition and Postcondition generic formal functions are optional
    --  proof bridge functions. They are used to pass verification context from
-   --  the caller to the call to the Build procedure.
+   --  the caller to the call to the `Initialize` procedure.
+
+   generic
+      with procedure Update (Indication : in out Indication_Type);
+
+      with function Precondition (Indication : Indication_Type) return Boolean;
+
+      with
+        function Postcondition (Indication : Indication_Type) return Boolean;
+   procedure Update_Indication (Handle : in out Indication_Handle)
+   with
+     Inline,
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition (Indication_Reference (Handle).all)
+       and then Indication_Written (Handle),
+     Post =>
+       not Is_Null (Handle)
+       and Indication_Written (Handle)
+       and Postcondition (Indication_Reference (Handle).all)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old);
+   --  Modifies a previously written indication payload.
+   --
+   --  This procedure utilizes a generic callback (`Initialize`) to directly
+   --  update the indication object in place, supporting zero-copy message
+   --  passing.
+   --
+   --  The Precondition and Postcondition generic formal functions are optional
+   --  proof bridge functions. They are used to pass verification context from
+   --  the caller to the call to the `Update` procedure.
 
    ----------------------
    -- Response Promise --
@@ -447,7 +474,8 @@ is
      Pre            =>
        not Is_Null (Handle)
        and then Is_Null (Promise)
-       and then Indication_Written (Handle),
+       and then Indication_Written (Handle)
+       and then Valid_Indication (Indication_Reference (Handle).all),
      Post           => Is_Null (Handle),
      Contract_Cases =>
        (Requires_Response (Handle) =>
