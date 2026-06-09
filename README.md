@@ -412,7 +412,7 @@ procedure Send_Request_To_SAP is
       Request := (Kind => ECHO_req, ECHO_Req => (Value_To_Echo => 123));
    end Build_ECHO_Req;
 
-   procedure Build_Request is new SAP.Build_Request (Build_ECHO_Req);
+   procedure Initialize_Request is new SAP.Initialize_Request (Build_ECHO_Req);
 
    Req_Handle  : SAP.Request_Handle;
    Cfm_Promise : SAP.Confirm_Promise;
@@ -421,7 +421,7 @@ begin
    SAP.Try_Allocate_Request (Req_Handle);
 
    if not SAP.Is_Null (Req_Handle) then
-      Build_Request (Req_Handle);
+      Initialize_Request (Req_Handle);
       SAP.Send_Request (Req_Handle, Cfm_Promise);
 
    else
@@ -512,10 +512,8 @@ end Example;
 The Service Provider processes a request by:
 1. Call `Get_Next_Request` to get a Service Handle that holds the next pending
    request from a Service User.
-3. Call `Request_Reference` and check what kind of request has been received.
-2. Call `Build_Confirm`, which passes the request and confirm primitives
-   to a user-defined procedure that reads the request and writes the confirm.
-3. Call `Send_Confirm` if the request required a confirmation, or call
+3. Process the request and write the confirm primtive (if required).
+3. Call `Send_Confirm` if the request requires a confirmation, or call
    `Request_Completed` if the request does not require a confirmation.
 
 ```mermaid
@@ -528,7 +526,7 @@ sequenceDiagram
     SAP->>SH: create
     SAP-->>-Provider: handle
 
-    Provider->>SH: Build_Confirm
+    Provider->>SH: Read request
 
     Provider->>+SAP: Send_Confirm
     destroy SH
@@ -538,40 +536,25 @@ sequenceDiagram
 
 >[!NOTE]
 > The Service Provider is not required to respond to the request
-> immediately. It can save the handle elsewhere and process other requests
-> in the meantime, before responding to the first request.
+> immediately. It can store the handle to respond to it later.
 
 ```ada
---  This example demonstrates using the SAP.Process_Request generic procedure
---  to process any kind of request.
---
---  SAP.Process_Request will call one of the following two procedures,
---  depending on whether the request requires a confirmation.
-
-procedure Process_Request_No_Confirm (Request : Request_Type)
-with
-  Pre => not Requires_Confirm (Request);
---  Called to process a request that does not require a confirmation.
-
-procedure Process_Request_With_Confirm
-  (Request : Request_Type; Confirm : out Confirm_Type)
-with
-  Pre  => Requires_Confirm (Request) and then not Confirm'Constrained,
-  Post => Valid_Confirm (Request, Confirm);
---  Called to process a request that requires a confirmation.
---
---  The procedure must write a valid confirmation to the Confirm output
---  parameter.
+--  This example uses two procedures to process requests, depending on whether
+--  the request requires a matching confirm primitive.
 
 --------------------------------
 -- Process_Request_No_Confirm --
 --------------------------------
 
---  In this example, with ECHO.req INCREMENT.req, and INCREMENT-SET.req
---  primitives, only INCREMENT-SET.req does not require a confirmation,
+--  This procedure processes requests that do not require a confirm primitive
+--  to be sent in response, which is enforced by the precondition.
+--
+--  In this example, only INCREMENT-SET.req does not require a confirmation,
 --  so this procedure is only called for that primitive.
 
-procedure Process_Request_No_Confirm (Request : Request_Type) is
+procedure Process_Request_No_Confirm (Request : Request_Type)
+with Pre => not Requires_Confirm (Request)
+is
 begin
    case Request.Kind is
       when INCREMENT_SET_Req =>
@@ -590,10 +573,22 @@ end Process_Request_No_Confirm;
 ----------------------------------
 
 --  This procedure is only called for ECHO.req and INCREMENT.cfm since they
---  require a confirmation.
+--  require a confirmation, which is enforced by the precondition.
+--
+--  Since Confirm_Type is a discriminated record, we require that Confirm is
+--  not constrained to ensure that we are able to set the discriminant to the
+--  correct Confirm_Kind.
+--
+--  The postcondition allows us to prove that the correct kind of confirm is
+--  sent in response to the request. E.g. that INCREMENT.cfm is sent in
+--  response to an INCREMENT.req.
 
 procedure Process_Request_With_Confirm
-   (Request : Request_Type; Confirm : out Confirm_Type) is
+   (Request : Request_Type; Confirm : out Confirm_Type)
+with
+  Pre  => Requires_Confirm (Request) and then not Confirm'Constrained,
+  Post => Valid_Confirm (Request, Confirm)
+is
 begin
    case Request.Kind is
       when ECHO_Req      =>
@@ -610,30 +605,41 @@ begin
    end case;
 end Process_Request_With_Confirm;
 
---  This is the actual code that reads a request from the SAP and services it:
+--------------------------
+-- Service_Next_Request --
+--------------------------
+
+--  This procedure waits for the next request from the SAP, processes it,
+--  and sends a confirm primitive if required.
 
 procedure Service_Next_Request is
 
-   procedure Process_Request is new
-     SAP.Process_Request
-       (Process_Request_No_Confirm,
-        Process_Request_With_Confirm);
+   --  To write the confirm primitive we pass Process_Request_With_Confirm
+   --  as a closure to SAP.Initialize_Confirm. The SAP will pass the confirm
+   --  primitive to our closure so that we can write to it.
+
+   procedure Write_Confirm is new
+     SAP.Initialize_Confirm
+       (Initialize    => Process_Request_With_Confirm,
+        Postcondition => Valid_Confirm);
 
    Handle : SAP.Service_Handle;
 
 begin
    SAP.Get_Next_Request (Handle);
-   Process_Request (Handle);
 
    if SAP.Requires_Confirm (Handle) then
+      Write_Confirm (Handle);
       SAP.Send_Confirm (Handle);
 
       --  Depending on your system's design, other code to notify the
       --  Service User task that the confirmation has been sent optionally goes
       --  here. For example, calling a protected procedure or setting a
       --  Suspension_Object to True.
+
    else
-      SAP.Request_Completed (Handle);
+      Process_Request_No_Confirm (SAP.Request_Reference (Handle).all);
+      SAP.Release (Handle);
    end if;
 end Service_Provider_Task;
 ```

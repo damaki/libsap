@@ -164,9 +164,7 @@ is
        = Requires_Response (Indication_Reference (Handle).all);
 
    function Indication_Written (Handle : Indication_Handle) return Boolean
-   with
-     Global => null,
-     Pre    => not Is_Null (Handle);
+   with Global => null, Pre => not Is_Null (Handle);
 
    function Indication_Kind
      (Handle : Indication_Handle) return Indication_Kind_Type
@@ -240,7 +238,7 @@ is
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Modifies a previously written indication payload.
    --
-   --  This procedure utilizes a generic callback (`Initialize`) to directly
+   --  This procedure utilizes a generic callback (`Update`) to directly
    --  update the indication object in place, supporting zero-copy message
    --  passing.
    --
@@ -415,9 +413,6 @@ is
        Requires_Response'Result
        = Requires_Response (Indication_Reference (Handle).all);
 
-   function Indication_Consumed (Handle : Service_Handle) return Boolean
-   with Global => null, Pre => not Is_Null (Handle);
-
    function Response_Written (Handle : Service_Handle) return Boolean
    with Global => null, Pre => not Is_Null (Handle);
 
@@ -441,7 +436,6 @@ is
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Response (Target) = Requires_Response (Source)'Old)
        and (Response_Written (Target) = Response_Written (Source)'Old)
-       and (Indication_Consumed (Target) = Indication_Consumed (Source)'Old)
        and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
 
    ---------------------------------
@@ -617,8 +611,7 @@ is
        (if not Is_Null (Handle)
         then
           Valid_Indication (Indication_Reference (Handle).all)
-          and then not Response_Written (Handle)
-          and then not Indication_Consumed (Handle));
+          and then not Response_Written (Handle));
    --  Attempts to retrieve the next available indication primitive from the
    --  global transaction queue.
 
@@ -644,8 +637,12 @@ is
      Global => (In_Out => Transaction_Pool),
      Pre    =>
        not Is_Null (Handle)
+       and then Requires_Response (Handle)
        and then Response_Written (Handle)
-       and then Requires_Response (Handle),
+       and then
+         Valid_Response
+           (Indication_Reference (Handle).all,
+            Response_Reference (Handle).all),
      Post   => Is_Null (Handle);
    --  Send a response primitive to a Service Provider.
    --
@@ -656,57 +653,23 @@ is
 
    generic
       with
-        procedure Process_Indication_No_Response
-          (Indication : Indication_Type);
-
-      with
-        procedure Process_Indication_With_Response
+        procedure Initialize
           (Indication : Indication_Type; Response : out Response_Type);
 
-      with function Precondition return Boolean is Always_True;
+      with
+        function Precondition (Indication : Indication_Type) return Boolean
+        is Always_True;
 
       with
         function Postcondition
           (Indication : Indication_Type; Response : Response_Type)
            return Boolean is Always_True;
-   procedure Process_Indication (Handle : in out Service_Handle)
-   with
-     Pre  => not Is_Null (Handle) and then Precondition,
-     Post =>
-       not Is_Null (Handle)
-       and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
-       and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old)
-       and
-         (if Requires_Response (Handle)'Old
-          then
-            Response_Written (Handle)
-            and then
-              Postcondition
-                (Indication_Reference (Handle).all,
-                 Response_Reference (Handle).all));
-   --  Process an indication, and generate a response if one is required.
-   --
-   --  This procedure passes the indication to either
-   --  Process_Indication_No_Response or Process_Indication_With_Response,
-   --  depending on whether a response is required.
-
-   generic
-      with
-        procedure Build
-          (Indication : Indication_Type; Response : out Response_Type);
-
-      with function Precondition return Boolean is Always_True;
-
-      with
-        function Postcondition
-          (Indication : Indication_Type; Response : Response_Type)
-           return Boolean is Always_True;
-   procedure Build_Response (Handle : in out Service_Handle)
+   procedure Initialize_Response (Handle : in out Service_Handle)
    with
      Pre  =>
        not Is_Null (Handle)
-       and then Precondition
+       and then not Response_Written (Handle)
+       and then Precondition (Indication_Reference (Handle).all)
        and then Requires_Response (Handle),
      Post =>
        not Is_Null (Handle)
@@ -718,34 +681,83 @@ is
          Postcondition
            (Indication_Reference (Handle).all,
             Response_Reference (Handle).all);
-   --  Builds a response primitive.
+   --  Initializes a response primitive.
    --
-   --  The response primitive is passed to the Build procedure, which writes
-   --  to it.
+   --  The response primitive is passed to the `Initialize` procedure, which
+   --  writes to it.
 
    generic
-      with procedure Consume (Indication : in out Indication_Type);
-      with function Precondition return Boolean;
       with
-        function Postcondition (Indication : Indication_Type) return Boolean;
-   procedure Consume_Indication (Handle : in out Service_Handle)
+        procedure Update
+          (Indication : Indication_Type; Response : in out Response_Type);
+
+      with
+        function Precondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
+
+      with
+        function Postcondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
+   procedure Update_Response (Handle : in out Service_Handle)
    with
+     Inline,
      Pre  =>
        not Is_Null (Handle)
-       and then not Indication_Consumed (Handle)
-       and then Precondition,
+       and then Response_Written (Handle)
+       and then Requires_Response (Handle)
+       and then
+         Precondition
+           (Indication_Reference (Handle).all,
+            Response_Reference (Handle).all),
      Post =>
        not Is_Null (Handle)
        and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
        and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
-       and Indication_Consumed (Handle)
+       and Response_Written (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         Postcondition
+           (Indication_Reference (Handle).all,
+            Response_Reference (Handle).all);
+   --  Modifies a previously written response payload.
+   --
+   --  This procedure utilizes a generic callback (`Update`) to directly
+   --  update the response object in place, supporting zero-copy message
+   --  passing.
+   --
+   --  The Precondition and Postcondition generic formal functions are optional
+   --  proof bridge functions. They are used to pass verification context from
+   --  the caller to the call to the `Update` procedure.
+
+   generic
+      with procedure Consume (Indication : in out Indication_Type);
+
+      with
+        function Precondition (Indication : Indication_Type) return Boolean
+        is Always_True;
+
+      with
+        function Postcondition (Indication : Indication_Type) return Boolean
+        is Always_True;
+   procedure Consume_Indication (Handle : in out Service_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition (Indication_Reference (Handle).all),
+     Post =>
+       not Is_Null (Handle)
+       and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
+       and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
+       and (Response_Written (Handle) = Response_Written (Handle)'Old)
        and Postcondition (Indication_Reference (Handle).all);
-   --  Modify an indication object.
+   --  Modify a indication object.
    --
    --  The purpose of this procedure is to provide a way to "consume" data from
    --  the indication object by modifying some fields of the indication.
    --  For example, to take ownership over a pointer field in the indication,
-   --  which requires setting it to null in the process.
+   --  which requires setting it to null in the indication.
    --
    --  The Consume general formal procedure must not modify the Indication_Kind
    --  or Requires_Response properties on the indication, and this must be
@@ -753,7 +765,7 @@ is
 
    generic
       with
-        procedure Build
+        procedure Initialize
           (Indication : in out Indication_Type; Response : out Response_Type);
 
       with
@@ -764,12 +776,11 @@ is
         function Postcondition
           (Indication : Indication_Type; Response : Response_Type)
            return Boolean is Always_True;
-   procedure Consume_Indication_And_Build_Response
+   procedure Consume_Indication_And_Initialize_Response
      (Handle : in out Service_Handle)
    with
      Pre  =>
        not Is_Null (Handle)
-       and then not Indication_Consumed (Handle)
        and then not Response_Written (Handle)
        and then Precondition (Indication_Reference (Handle).all)
        and then Requires_Response (Handle),
@@ -783,13 +794,66 @@ is
          Postcondition
            (Indication_Reference (Handle).all,
             Response_Reference (Handle).all);
-   --  Build a Response primitive with the ability to consume data from the
-   --  Indication primitive.
+   --  Initialize a Response primitive with the ability to consume data from
+   --  the Indication primitive.
+   --
+   --  This is the same as Initialize_Response, except with the ability to
+   --  modify the indication object.
    --
    --  This is intended for use with primitives that have ownership semantics.
    --  It allows pointer values in the Indication primitive to be moved
-   --  elsewhere, which requires the ability to write to the request to set the
-   --  pointer to null.
+   --  elsewhere, which requires the ability to write to the indication to set
+   --  the pointer to null.
+
+   generic
+      with
+        procedure Update
+          (Indication : in out Indication_Type;
+           Response   : in out Response_Type);
+
+      with
+        function Precondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
+
+      with
+        function Postcondition
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
+   procedure Consume_Indication_And_Update_Response
+     (Handle : in out Service_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then Response_Written (Handle)
+       and then Requires_Response (Handle)
+       and then
+         Precondition
+           (Indication_Reference (Handle).all,
+            Response_Reference (Handle).all),
+     Post =>
+       not Is_Null (Handle)
+       and (Indication_Kind (Handle) = Indication_Kind (Handle)'Old)
+       and (Requires_Response (Handle) = Requires_Response (Handle)'Old)
+       and Response_Written (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         Postcondition
+           (Indication_Reference (Handle).all,
+            Response_Reference (Handle).all);
+   --  Modifies a previously written response payload with the ability to
+   --  consume data from the Indication primitive.
+   --
+   --  This procedure utilizes a generic callback (`Update`) to directly
+   --  update the response object in place, supporting zero-copy message
+   --  passing.
+   --
+   --  This is the same as the `Update_Response` procedure, except with the
+   --  ability to modify the request object.
+   --
+   --  The Precondition and Postcondition generic formal functions are optional
+   --  proof bridge functions. They are used to pass verification context from
+   --  the caller to the call to the `Update` procedure.
 
 private
 
@@ -889,12 +953,5 @@ private
 
    function Indication_Written (Handle : Indication_Handle) return Boolean
    is (STQ.Request_Written (Handle.Handle));
-
-   -------------------------
-   -- Indication_Consumed --
-   -------------------------
-
-   function Indication_Consumed (Handle : Service_Handle) return Boolean
-   is (STQ.Request_Consumed (Handle.Handle));
 
 end LibSAP.Light_User_Service_Access_Point;

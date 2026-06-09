@@ -168,10 +168,10 @@ is
          end case;
       end Process_Request_With_Confirm;
 
-      procedure Process_Request is new
-        SAP.Process_Request
-          (Process_Request_No_Confirm   => Process_Request_No_Confirm,
-           Process_Request_With_Confirm => Process_Request_With_Confirm);
+      procedure Write_Confirm is new
+        SAP.Initialize_Confirm
+          (Initialize    => Process_Request_With_Confirm,
+           Postcondition => Valid_Confirm);
 
       Handle : SAP.Service_Handle;
       TID    : SAP.Transaction_ID;
@@ -184,22 +184,22 @@ is
 
          SAP.Get_Next_Request (Handle);
 
-         Process_Request (Handle);
+         TID := SAP.Get_TID (Handle);
 
-         --  Send the confirmation (if one is required) and notify the
-         --  Service User task that it is pending by setting the
-         --  Confirm_Pending suspension object to True.
+         --  Process the request and write the confirm primitive
+         --  (if one is required).
 
-         if SAP.Requires_Confirm (Handle) then
-            TID := SAP.Get_TID (Handle);
+         if not SAP.Requires_Confirm (Handle) then
+            Process_Request_No_Confirm (SAP.Request_Reference (Handle).all);
+            SAP.Release (Handle);
 
+         else
+            Write_Confirm (Handle);
             SAP.Send_Confirm (Handle);
 
             for CB of Confirm_Barriers loop
                CB.Notify_Confirm_Pending (TID);
             end loop;
-         else
-            SAP.Release (Handle);
          end if;
 
       end loop;

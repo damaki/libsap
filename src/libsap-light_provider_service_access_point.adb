@@ -142,7 +142,7 @@ is
    procedure Initialize_Request (Handle : in out Request_Handle) is
       procedure Initialize_Wrapper is new
         STQ.Initialize_Request
-          (Initialize         => Initialize,
+          (Initialize    => Initialize,
            Precondition  => Precondition,
            Postcondition => Postcondition);
    begin
@@ -156,7 +156,7 @@ is
    procedure Update_Request (Handle : in out Request_Handle) is
       procedure Update_Wrapper is new
         STQ.Update_Request
-          (Update         => Update,
+          (Update        => Update,
            Precondition  => Precondition,
            Postcondition => Postcondition);
    begin
@@ -207,49 +207,33 @@ is
       STQ.Send_Confirm (Handle.Handle);
    end Send_Confirm;
 
-   ---------------------
-   -- Process_Request --
-   ---------------------
+   ------------------------
+   -- Initialize_Confirm --
+   ------------------------
 
-   procedure Process_Request (Handle : in out Service_Handle) is
-
-      procedure Process_Request_With_Confirm_Wrapper is new
-        STQ.Build_Confirm
-          (Build         => Process_Request_With_Confirm,
-           Precondition  => Precondition,
-           Postcondition => Postcondition);
-
-      Needs_Confirm : Boolean;
-
-   begin
-      declare
-         Request : constant not null access constant Request_Type :=
-           STQ.Request_Reference (Handle.Handle);
-      begin
-         Needs_Confirm := Requires_Confirm (Request.all);
-
-         if not Needs_Confirm then
-            Process_Request_No_Confirm (Request.all);
-         end if;
-      end;
-
-      if Needs_Confirm then
-         Process_Request_With_Confirm_Wrapper (Handle.Handle);
-      end if;
-   end Process_Request;
-
-   -------------------
-   -- Build_Confirm --
-   -------------------
-
-   procedure Build_Confirm (Handle : in out Service_Handle) is
-      procedure Build_Wrapper is new STQ.Build_Confirm
-          (Build         => Build,
+   procedure Initialize_Confirm (Handle : in out Service_Handle) is
+      procedure Initialize_Wrapper is new
+        STQ.Initialize_Confirm
+          (Initialize    => Initialize,
            Precondition  => Precondition,
            Postcondition => Postcondition);
    begin
-      Build_Wrapper (Handle.Handle);
-   end Build_Confirm;
+      Initialize_Wrapper (Handle.Handle);
+   end Initialize_Confirm;
+
+   --------------------
+   -- Update_Confirm --
+   --------------------
+
+   procedure Update_Confirm (Handle : in out Service_Handle) is
+      procedure Update_Wrapper is new
+        STQ.Update_Confirm
+          (Update        => Update,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Update_Wrapper (Handle.Handle);
+   end Update_Confirm;
 
    ---------------------
    -- Consume_Request --
@@ -265,20 +249,37 @@ is
       Consume_Wrapper (Handle.Handle);
    end Consume_Request;
 
-   ---------------------------------------
-   -- Consume_Request_And_Build_Confirm --
-   ---------------------------------------
+   --------------------------------------------
+   -- Consume_Request_And_Initialize_Confirm --
+   --------------------------------------------
 
-   procedure Consume_Request_And_Build_Confirm (Handle : in out Service_Handle)
+   procedure Consume_Request_And_Initialize_Confirm
+     (Handle : in out Service_Handle)
    is
-      procedure Build_Wrapper is new
-        STQ.Consume_Request_And_Build_Confirm
-          (Build         => Build,
+      procedure Initialize_Wrapper is new
+        STQ.Consume_Request_And_Initialize_Confirm
+          (Initialize    => Initialize,
            Precondition  => Precondition,
            Postcondition => Postcondition);
    begin
-      Build_Wrapper (Handle.Handle);
-   end Consume_Request_And_Build_Confirm;
+      Initialize_Wrapper (Handle.Handle);
+   end Consume_Request_And_Initialize_Confirm;
+
+   ----------------------------------------
+   -- Consume_Request_And_Update_Confirm --
+   ----------------------------------------
+
+   procedure Consume_Request_And_Update_Confirm
+     (Handle : in out Service_Handle)
+   is
+      procedure Update_Wrapper is new
+        STQ.Consume_Request_And_Update_Confirm
+          (Update        => Update,
+           Precondition  => Precondition,
+           Postcondition => Postcondition);
+   begin
+      Update_Wrapper (Handle.Handle);
+   end Consume_Request_And_Update_Confirm;
 
    -------------
    -- Release --

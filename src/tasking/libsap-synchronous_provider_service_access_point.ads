@@ -181,9 +181,7 @@ is
        = Requires_Confirm (Request_Reference (Handle).all);
 
    function Request_Written (Handle : Request_Handle) return Boolean
-   with
-     Global => null,
-     Pre    => not Is_Null (Handle);
+   with Global => null, Pre => not Is_Null (Handle);
 
    procedure Move
      (Target : in out Request_Handle; Source : in out Request_Handle)
@@ -244,7 +242,7 @@ is
        and (Get_TID (Handle) = Get_TID (Handle)'Old);
    --  Modifies a previously written request payload.
    --
-   --  This procedure utilizes a generic callback (`Initialize`) to directly
+   --  This procedure utilizes a generic callback (`Update`) to directly
    --  update the request object in place, supporting zero-copy message
    --  passing.
    --
@@ -411,9 +409,6 @@ is
      Post   =>
        Request_Kind'Result = Request_Kind (Request_Reference (Handle).all);
 
-   function Request_Consumed (Handle : Service_Handle) return Boolean
-   with Global => null, Pre => not Is_Null (Handle);
-
    function Confirm_Written (Handle : Service_Handle) return Boolean
    with
      Global => null,
@@ -441,7 +436,6 @@ is
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
        and (Confirm_Written (Target) = Confirm_Written (Source)'Old)
-       and (Request_Consumed (Target) = Request_Consumed (Source)'Old)
        and (Request_Kind (Target) = Request_Kind (Source)'Old);
 
    -----------------------------
@@ -619,8 +613,7 @@ is
      Post   =>
        not Is_Null (Handle)
        and then Valid_Request (Request_Reference (Handle).all)
-       and then not Confirm_Written (Handle)
-       and then not Request_Consumed (Handle);
+       and then not Confirm_Written (Handle);
    --  Retrieves the next available service request from the global transaction
    --  queue.
    --
@@ -637,8 +630,7 @@ is
        (if not Is_Null (Handle)
         then
           Valid_Request (Request_Reference (Handle).all)
-          and then not Confirm_Written (Handle)
-          and then not Request_Consumed (Handle));
+          and then not Confirm_Written (Handle));
    --  Attempts to retrieve the next available request primitive from the
    --  global transaction queue.
    --
@@ -666,8 +658,11 @@ is
      Global => (In_Out => Transaction_Queue),
      Pre    =>
        not Is_Null (Handle)
+       and then Requires_Confirm (Handle)
        and then Confirm_Written (Handle)
-       and then Requires_Confirm (Handle),
+       and then
+         Valid_Confirm
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all),
      Post   => Is_Null (Handle);
    --  Send a confirm primitive to a Service User.
    --
@@ -677,58 +672,24 @@ is
    --  This is a non-blocking operation.
 
    generic
-      with procedure Process_Request_No_Confirm (Request : Request_Type);
-
       with
-        procedure Process_Request_With_Confirm
+        procedure Initialize
           (Request : Request_Type; Confirm : out Confirm_Type);
 
-      with function Precondition return Boolean is Always_True;
+      with
+        function Precondition (Request : Request_Type) return Boolean
+        is Always_True;
 
       with
         function Postcondition
           (Request : Request_Type; Confirm : Confirm_Type) return Boolean
         is Always_True;
-   procedure Process_Request (Handle : in out Service_Handle)
+   procedure Initialize_Confirm (Handle : in out Service_Handle)
    with
      Pre  =>
        not Is_Null (Handle)
-       and then Precondition
-       and then not Confirm_Written (Handle),
-     Post =>
-       not Is_Null (Handle)
-       and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
-       and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
-       and (Get_TID (Handle) = Get_TID (Handle)'Old)
-       and
-         (if Requires_Confirm (Handle)'Old
-          then
-            Confirm_Written (Handle)
-            and then
-              Postcondition
-                (Request_Reference (Handle).all,
-                 Confirm_Reference (Handle).all));
-   --  Process a request, and generate a confirm if one is required.
-   --
-   --  This procedure passes the request to either Process_Request_No_Confirm
-   --  or Process_Request_With_Confirm, depending on whether a confirmation
-   --  is required.
-
-   generic
-      with
-        procedure Build (Request : Request_Type; Confirm : out Confirm_Type);
-
-      with function Precondition return Boolean is Always_True;
-
-      with
-        function Postcondition
-          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
-        is Always_True;
-   procedure Build_Confirm (Handle : in out Service_Handle)
-   with
-     Pre  =>
-       not Is_Null (Handle)
-       and then Precondition
+       and then not Confirm_Written (Handle)
+       and then Precondition (Request_Reference (Handle).all)
        and then Requires_Confirm (Handle),
      Post =>
        not Is_Null (Handle)
@@ -739,26 +700,74 @@ is
        and
          Postcondition
            (Request_Reference (Handle).all, Confirm_Reference (Handle).all);
-   --  Builds a confirm primitive.
+   --  Initializes a confirm primitive.
    --
-   --  The confirm primitive is passed to the Build procedure, which writes
-   --  to it.
+   --  The confirm primitive is passed to the `Initialize` procedure, which
+   --  writes to it.
 
    generic
-      with procedure Consume (Request : in out Request_Type);
-      with function Precondition return Boolean;
-      with function Postcondition (Request : Request_Type) return Boolean;
-   procedure Consume_Request (Handle : in out Service_Handle)
+      with
+        procedure Update
+          (Request : Request_Type; Confirm : in out Confirm_Type);
+
+      with
+        function Precondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        is Always_True;
+
+      with
+        function Postcondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        is Always_True;
+   procedure Update_Confirm (Handle : in out Service_Handle)
    with
+     Inline,
      Pre  =>
        not Is_Null (Handle)
-       and then not Request_Consumed (Handle)
-       and then Precondition,
+       and then Confirm_Written (Handle)
+       and then Requires_Confirm (Handle)
+       and then
+         Precondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all),
      Post =>
        not Is_Null (Handle)
        and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
        and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
-       and Request_Consumed (Handle)
+       and Confirm_Written (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         Postcondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all);
+   --  Modifies a previously written confirm payload.
+   --
+   --  This procedure utilizes a generic callback (`Update`) to directly
+   --  update the confirm object in place, supporting zero-copy message
+   --  passing.
+   --
+   --  The Precondition and Postcondition generic formal functions are optional
+   --  proof bridge functions. They are used to pass verification context from
+   --  the caller to the call to the `Update` procedure.
+
+   generic
+      with procedure Consume (Request : in out Request_Type);
+
+      with
+        function Precondition (Request : Request_Type) return Boolean
+        is Always_True;
+
+      with
+        function Postcondition (Request : Request_Type) return Boolean
+        is Always_True;
+   procedure Consume_Request (Handle : in out Service_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then Precondition (Request_Reference (Handle).all),
+     Post =>
+       not Is_Null (Handle)
+       and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
+       and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
+       and (Confirm_Written (Handle) = Confirm_Written (Handle)'Old)
        and Postcondition (Request_Reference (Handle).all);
    --  Modify a request object.
    --
@@ -773,7 +782,7 @@ is
 
    generic
       with
-        procedure Build
+        procedure Initialize
           (Request : in out Request_Type; Confirm : out Confirm_Type);
 
       with
@@ -784,11 +793,11 @@ is
         function Postcondition
           (Request : Request_Type; Confirm : Confirm_Type) return Boolean
         is Always_True;
-   procedure Consume_Request_And_Build_Confirm (Handle : in out Service_Handle)
+   procedure Consume_Request_And_Initialize_Confirm
+     (Handle : in out Service_Handle)
    with
      Pre  =>
        not Is_Null (Handle)
-       and then not Request_Consumed (Handle)
        and then not Confirm_Written (Handle)
        and then Precondition (Request_Reference (Handle).all)
        and then Requires_Confirm (Handle),
@@ -801,13 +810,63 @@ is
        and
          Postcondition
            (Request_Reference (Handle).all, Confirm_Reference (Handle).all);
-   --  Build a Confirm primitive with the ability to consume data from the
+   --  Initialize a Confirm primitive with the ability to consume data from the
    --  Request primitive.
+   --
+   --  This is the same as Initialize_Confirm, except with the ability to
+   --  modify the request object.
    --
    --  This is intended for use with primitives that have ownership semantics.
    --  It allows pointer values in the Request primitive to be moved elsewhere,
    --  which requires the ability to write to the request to set the pointer
    --  to null.
+
+   generic
+      with
+        procedure Update
+          (Request : in out Request_Type; Confirm : in out Confirm_Type);
+
+      with
+        function Precondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        is Always_True;
+
+      with
+        function Postcondition
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        is Always_True;
+   procedure Consume_Request_And_Update_Confirm
+     (Handle : in out Service_Handle)
+   with
+     Pre  =>
+       not Is_Null (Handle)
+       and then Confirm_Written (Handle)
+       and then Requires_Confirm (Handle)
+       and then
+         Precondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all),
+     Post =>
+       not Is_Null (Handle)
+       and (Request_Kind (Handle) = Request_Kind (Handle)'Old)
+       and (Requires_Confirm (Handle) = Requires_Confirm (Handle)'Old)
+       and Confirm_Written (Handle)
+       and (Get_TID (Handle) = Get_TID (Handle)'Old)
+       and
+         Postcondition
+           (Request_Reference (Handle).all, Confirm_Reference (Handle).all);
+   --  Modifies a previously written confirm payload with the ability to
+   --  consume data from the Request primitive.
+   --
+   --  This procedure utilizes a generic callback (`Update`) to directly
+   --  update the confirm object in place, supporting zero-copy message
+   --  passing.
+   --
+   --  This is the same as the `Update_Confirm` procedure, except with the
+   --  ability to modify the request object.
+   --
+   --  The Precondition and Postcondition generic formal functions are optional
+   --  proof bridge functions. They are used to pass verification context from
+   --  the caller to the call to the `Update` procedure.
 
 private
 
@@ -910,12 +969,5 @@ private
 
    function Request_Written (Handle : Request_Handle) return Boolean
    is (STQ.Request_Written (Handle.Handle));
-
-   ----------------------
-   -- Request_Consumed --
-   ----------------------
-
-   function Request_Consumed (Handle : Service_Handle) return Boolean
-   is (STQ.Request_Consumed (Handle.Handle));
 
 end LibSAP.Synchronous_Provider_Service_Access_Point;
