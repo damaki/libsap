@@ -39,7 +39,6 @@ is
      Pre  =>
        not SP_SAP.Is_Null (Handle)
        and then SP_SAP.Indication_Kind (Handle) = DATA_Ind
-       and then not SP_SAP.Indication_Consumed (Handle)
        and then not SP_SAP.Response_Written (Handle)
        and then
          Service_Provider.Valid_Indication
@@ -101,14 +100,14 @@ is
          Indication.DATA_Ind.Data := null;
       end Build_DATA_Res;
 
-      procedure Build_Response is new
-        SP_SAP.Consume_Indication_And_Build_Response
-          (Build         => Build_DATA_Res,
+      procedure Initialize_Response is new
+        SP_SAP.Consume_Indication_And_Initialize_Response
+          (Initialize    => Build_DATA_Res,
            Precondition  => Precondition,
            Postcondition => Service_Provider.Valid_Response);
 
    begin
-      Build_Response (Handle);
+      Initialize_Response (Handle);
       SP_SAP.Send_Response (Handle);
    end Send_DATA_Res;
 

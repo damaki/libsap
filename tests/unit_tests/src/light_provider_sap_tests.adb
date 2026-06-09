@@ -143,9 +143,9 @@ package body Light_Provider_SAP_Tests is
             Confirm := (Kind => CFM_1, CFM_1 => (Value => 321));
          end Build;
 
-         procedure Build_Confirm is new SAP.Build_Confirm (Build);
+         procedure Initialize_Confirm is new SAP.Initialize_Confirm (Build);
       begin
-         Build_Confirm (S_Handle);
+         Initialize_Confirm (S_Handle);
       end;
 
       SAP.Try_Get_Confirm (Cfm_Handle, Cfm_Promise);
@@ -242,9 +242,9 @@ package body Light_Provider_SAP_Tests is
             Confirm := (Kind => CFM_1, CFM_1 => (Value => 321));
          end Build;
 
-         procedure Build_Confirm is new SAP.Build_Confirm (Build);
+         procedure Initialize_Confirm is new SAP.Initialize_Confirm (Build);
       begin
-         Build_Confirm (S_Handle);
+         Initialize_Confirm (S_Handle);
       end;
 
       --  The transaction should be completed and released back to the free
@@ -351,9 +351,9 @@ package body Light_Provider_SAP_Tests is
             Confirm := (Kind => CFM_1, CFM_1 => (Value => 321));
          end Build;
 
-         procedure Build_Confirm is new SAP.Build_Confirm (Build);
+         procedure Initialize_Confirm is new SAP.Initialize_Confirm (Build);
       begin
-         Build_Confirm (S_Handle);
+         Initialize_Confirm (S_Handle);
       end;
 
       SAP.Send_Confirm (S_Handle);

@@ -145,9 +145,9 @@ package body Light_User_SAP_Tests is
             Response := (Kind => RES_1, RES_1 => (Value => 321));
          end Build;
 
-         procedure Build_Response is new SAP.Build_Response (Build);
+         procedure Initialize_Response is new SAP.Initialize_Response (Build);
       begin
-         Build_Response (S_Handle);
+         Initialize_Response (S_Handle);
       end;
 
       SAP.Try_Get_Response (Res_Handle, Res_Promise);
@@ -245,9 +245,9 @@ package body Light_User_SAP_Tests is
             Response := (Kind => RES_1, RES_1 => (Value => 321));
          end Build;
 
-         procedure Build_Response is new SAP.Build_Response (Build);
+         procedure Initialize_Response is new SAP.Initialize_Response (Build);
       begin
-         Build_Response (S_Handle);
+         Initialize_Response (S_Handle);
       end;
 
       --  The transaction should be completed and released back to the free
@@ -355,9 +355,9 @@ package body Light_User_SAP_Tests is
             Response := (Kind => RES_1, RES_1 => (Value => 321));
          end Build;
 
-         procedure Build_Response is new SAP.Build_Response (Build);
+         procedure Initialize_Response is new SAP.Initialize_Response (Build);
       begin
-         Build_Response (S_Handle);
+         Initialize_Response (S_Handle);
       end;
 
       SAP.Send_Response (S_Handle);
