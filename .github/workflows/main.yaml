@@ -31,9 +31,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: alire-project/setup-alire@v4
+      - uses: alire-project/setup-alire@v6
         with:
-          version: 2.1.0
+          version: 2.1.1
           toolchain: gnat_native${{ matrix.gnat_version }} gprbuild --disable-assistant
 
       - name: Build (validation)
@@ -59,7 +59,7 @@ jobs:
           cat reports/unit_tests.xml
 
       - name: Test Report
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         if: ${{ !cancelled() }}       # run this step even if previous step failed
         with:
           name: Unit Tests
@@ -76,9 +76,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: alire-project/setup-alire@v4
+      - uses: alire-project/setup-alire@v6
         with:
-          version: 2.1.0
+          version: 2.1.1
 
       - name: Prove example ${{ matrix.subdir }}
         shell: bash
