@@ -128,7 +128,13 @@ is
      Pre    => Ptr /= null,
      Post   => Ptr = null;
 
-   procedure Resolve_Discarded_Promise (ID : Transaction_ID);
+   procedure Resolve_Discarded_Promise (ID : Transaction_ID)
+   with
+     Global =>
+       (In_Out =>
+          (Free_Pool.Pointer_Pool,
+           Pending_Confirms_Pool.Pointer_Pool,
+           Discarded_Promises_Pool.Pointer_Pool));
 
    ----------------------
    -- Parameter_Checks --
@@ -467,8 +473,7 @@ is
    --------------------------------------------
 
    procedure Consume_Request_And_Initialize_Confirm
-     (Handle : in out Service_Handle)
-   is
+     (Handle : in out Service_Handle) is
    begin
       Handle.TD.all.State := Confirm_Written;
       Initialize (Handle.TD.all.Request, Handle.TD.all.Confirm);
@@ -479,8 +484,7 @@ is
    ----------------------------------------
 
    procedure Consume_Request_And_Update_Confirm
-     (Handle : in out Service_Handle)
-   is
+     (Handle : in out Service_Handle) is
    begin
       Update (Handle.TD.all.Request, Handle.TD.all.Confirm);
    end Consume_Request_And_Update_Confirm;
@@ -972,7 +976,19 @@ is
          begin
 
             Alloc_Token := new Confirm_Promise_Token'(TID => I);
+
             Token := Confirm_Promise_Token_Access (Alloc_Token);
+
+            pragma
+              Annotate
+                (GNATprove,
+                 Intentional,
+                 "resource or memory leak might occur",
+                 "Move from pool-specific access-to-variable type to "
+                 & "general access-to-variable type is intentional. "
+                 & "This object is never meant to be deallocated; it is "
+                 & "allocated during elaboration and persists until program "
+                 & "termination.");
 
             Alloc_TD :=
               new Transaction_Data'
@@ -982,6 +998,17 @@ is
                  State     => Free,
                  Cfm_Token => Token);
             TD := Free_Transaction_Data_Access (Alloc_TD);
+
+            pragma
+              Annotate
+                (GNATprove,
+                 Intentional,
+                 "resource or memory leak might occur",
+                 "Move from pool-specific access-to-variable type to "
+                 & "general access-to-variable type is intentional. "
+                 & "This object is never meant to be deallocated; it is "
+                 & "allocated during elaboration and persists until program "
+                 & "termination.");
 
             Free_Pool.Exchange (TD);
 
