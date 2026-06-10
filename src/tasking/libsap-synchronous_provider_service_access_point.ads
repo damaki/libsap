@@ -197,7 +197,10 @@ is
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
        and (Request_Written (Target) = Request_Written (Source)'Old)
-       and (Request_Kind (Target) = Request_Kind (Source)'Old);
+       and (Request_Kind (Target) = Request_Kind (Source)'Old)
+       and
+         (Valid_Request (Request_Reference (Target).all)
+          = Valid_Request (Request_Reference (Source).all)'Old);
 
    generic
       with procedure Initialize (Request : out Request_Type);
@@ -344,7 +347,17 @@ is
      Post   =>
        (Is_Null (Target) = Is_Null (Source)'Old)
        and Is_Null (Source)
-       and (Request_Kind (Target) = Request_Kind (Source)'Old);
+       and (Request_Kind (Target) = Request_Kind (Source)'Old)
+       and (Requires_Cleanup (Target) = Requires_Cleanup (Source)'Old)
+       and
+         (Valid_Request (Request_Reference (Target).all)
+          = Valid_Request (Request_Reference (Source).all)'Old)
+       and
+         (Valid_Confirm
+            (Request_Reference (Target).all, Confirm_Reference (Target).all)
+          = Valid_Confirm
+              (Request_Reference (Source).all,
+               Confirm_Reference (Source).all)'Old);
 
    generic
       with
@@ -437,6 +450,18 @@ is
        and then Confirm_Written (Handle)
        and then Requires_Confirm (Handle);
 
+   function Requires_Cleanup (Handle : Service_Handle) return Boolean
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Requires_Cleanup'Result
+       = (Request_Requires_Cleanup (Request_Reference (Handle).all)
+          or else
+            (Confirm_Written (Handle)
+             and then
+               Confirm_Requires_Cleanup (Confirm_Reference (Handle).all)));
+
    procedure Move
      (Target : in out Service_Handle; Source : in out Service_Handle)
    with
@@ -448,7 +473,11 @@ is
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
        and (Confirm_Written (Target) = Confirm_Written (Source)'Old)
-       and (Request_Kind (Target) = Request_Kind (Source)'Old);
+       and (Request_Kind (Target) = Request_Kind (Source)'Old)
+       and (Requires_Cleanup (Target) = Requires_Cleanup (Source)'Old)
+       and
+         (Valid_Request (Request_Reference (Target).all)
+          = Valid_Request (Request_Reference (Source).all)'Old);
 
    -----------------------------
    -- Service User Operations --
@@ -966,6 +995,9 @@ private
    ----------------------
 
    function Requires_Cleanup (Handle : Confirm_Handle) return Boolean
+   is (STQ.Requires_Cleanup (Handle.Handle));
+
+   function Requires_Cleanup (Handle : Service_Handle) return Boolean
    is (STQ.Requires_Cleanup (Handle.Handle));
 
    ---------------------
