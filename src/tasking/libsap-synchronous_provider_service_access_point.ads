@@ -139,6 +139,10 @@ is
    is (True);
 
    function Always_True
+     (Confirm : Confirm_Type with Unreferenced) return Boolean
+   is (True);
+
+   function Always_True
      (Request : Request_Type with Unreferenced;
       Confirm : Confirm_Type with Unreferenced) return Boolean
    is (True);
@@ -189,18 +193,48 @@ is
    procedure Move
      (Target : in out Request_Handle; Source : in out Request_Handle)
    with
+     Inline,
      Global => null,
      Pre    => Is_Null (Target) and not Is_Null (Source),
      Post   =>
        not Is_Null (Target)
        and Is_Null (Source)
-       and (Is_Null (Target) = Is_Null (Source)'Old)
+       and (Get_TID (Target) = Get_TID (Source)'Old)
        and (Requires_Confirm (Target) = Requires_Confirm (Source)'Old)
        and (Request_Written (Target) = Request_Written (Source)'Old)
        and (Request_Kind (Target) = Request_Kind (Source)'Old)
        and
          (Valid_Request (Request_Reference (Target).all)
           = Valid_Request (Request_Reference (Source).all)'Old);
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  The request primitive is not modified during the move, but this cannot
+   --  be fully expressed in the postcondition since Request_Type is a limited
+   --  type, so it is therefore not possible to refer to the `'Old` value of
+   --  the request object.
+   --
+   --  If you need to prove that certain properties on the request object are
+   --  preserved during the move, then use `Move_Request_Handle_With_Property`.
+
+   generic
+      with function Property (Request : Request_Type) return Boolean;
+   procedure Move_Request_Handle_With_Property
+     (Target : in out Request_Handle; Source : in out Request_Handle)
+   with
+     Inline,
+     Pre    => Is_Null (Target) and not Is_Null (Source),
+     Post   =>
+       not Is_Null (Target)
+       and Is_Null (Source)
+       and (Get_TID (Target) = Get_TID (Source)'Old)
+       and (Request_Written (Target) = Request_Written (Source)'Old)
+       and
+         (Property (Request_Reference (Target).all)
+          = Property (Request_Reference (Source).all)'Old);
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  This is the same as `Move`, but also proves that an arbitrary
+   --  `Property` of the request object is also preserved during the move.
 
    generic
       with procedure Initialize (Request : out Request_Type);
@@ -291,6 +325,7 @@ is
        (Is_Null (Target) = Is_Null (Source)'Old)
        and Is_Null (Source)
        and (Request_Kind (Target) = Request_Kind (Source)'Old);
+   --  Moves ownership of a promise from one handle to another
 
    ---------------------
    -- Confirm Handles --
@@ -358,6 +393,55 @@ is
           = Valid_Confirm
               (Request_Reference (Source).all,
                Confirm_Reference (Source).all)'Old);
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  The request and confirm primitives are not modified during the move, but
+   --  this cannot be fully expressed in the postcondition since Request_Type
+   --  and Confirm_Type are limited types, so it is therefore not possible to
+   --  refer to the `'Old` value of the objects.
+   --
+   --  If you need to prove that certain properties on the primitives are
+   --  preserved during the move, then use `Move_Confirm_Handle_With_Property`.
+
+   generic
+      with
+        function Request_Property (Request : Request_Type) return Boolean
+        is Always_True;
+
+      with
+        function Confirm_Property (Confirm : Confirm_Type) return Boolean
+        is Always_True;
+
+      with
+        function Pair_Property
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        is Always_True;
+   procedure Move_Confirm_Handle_With_Property
+     (Target : in out Confirm_Handle; Source : in out Confirm_Handle)
+   with
+     Inline,
+     Pre    => Is_Null (Target) and not Is_Null (Source),
+     Post   =>
+       not Is_Null (Target)
+       and Is_Null (Source)
+       and (Get_TID (Target) = Get_TID (Source)'Old)
+       and
+         (Request_Property (Request_Reference (Target).all)
+          = Request_Property (Request_Reference (Source).all))
+       and
+         (Confirm_Property (Confirm_Reference (Target).all)
+          = Confirm_Property (Confirm_Reference (Source).all))
+       and
+         (Pair_Property
+            (Request_Reference (Target).all, Confirm_Reference (Target).all)
+          = Pair_Property
+              (Request_Reference (Source).all,
+               Confirm_Reference (Source).all)'Old);
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  This is the same as `Move`, but also proves that arbitrary properties
+   --  of the request and/or confirm objects are also preserved during the
+   --  move.
 
    generic
       with
@@ -478,6 +562,60 @@ is
        and
          (Valid_Request (Request_Reference (Target).all)
           = Valid_Request (Request_Reference (Source).all)'Old);
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  The request primitive and the confirm primitive (if one has been
+   --  written yet) are not modified during the move, but this cannot be fully
+   --  expressed in the postcondition since Request_Type and Confirm_Type are
+   --  limited types, so it is therefore not possible to refer to the `'Old`
+   --  value of the objects.
+   --
+   --  If you need to prove that certain properties on the primitives are
+   --  preserved during the move, then use `Move_Service_Handle_With_Property`.
+
+   generic
+      with
+        function Request_Property (Request : Request_Type) return Boolean
+        is Always_True;
+
+      with
+        function Confirm_Property (Confirm : Confirm_Type) return Boolean
+        is Always_True;
+
+      with
+        function Pair_Property
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        is Always_True;
+   procedure Move_Service_Handle_With_Property
+     (Target : in out Service_Handle; Source : in out Service_Handle)
+   with
+     Inline,
+     Pre    => Is_Null (Target) and not Is_Null (Source),
+     Post   =>
+       not Is_Null (Target)
+       and Is_Null (Source)
+       and (Get_TID (Target) = Get_TID (Source)'Old)
+       and (Confirm_Written (Target) = Confirm_Written (Source)'Old)
+       and
+         (Request_Property (Request_Reference (Target).all)
+          = Request_Property (Request_Reference (Source).all)'Old)
+       and
+         (if Confirm_Written (Source)'Old
+          then
+            (Confirm_Property (Confirm_Reference (Target).all)
+             = Confirm_Property (Confirm_Reference (Source).all)'Old)
+            and
+              (Pair_Property
+                 (Request_Reference (Target).all,
+                  Confirm_Reference (Target).all)
+               = Pair_Property
+                   (Request_Reference (Source).all,
+                    Confirm_Reference (Source).all)'Old));
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  This is the same as `Move`, but also proves that arbitrary properties
+   --  of the request and/or confirm objects are also preserved during the
+   --  move.
 
    -----------------------------
    -- Service User Operations --
@@ -1018,16 +1156,16 @@ private
    -- Empty_Handle --
    ------------------
 
-   function Empty_Handle return Request_Handle is
-   (Request_Handle'(Handle => STQ.Empty_Handle));
+   function Empty_Handle return Request_Handle
+   is (Request_Handle'(Handle => STQ.Empty_Handle));
 
-   function Empty_Promise return Confirm_Promise is
-   (Confirm_Promise'(Handle => STQ.Empty_Promise));
+   function Empty_Promise return Confirm_Promise
+   is (Confirm_Promise'(Handle => STQ.Empty_Promise));
 
-   function Empty_Handle return Confirm_Handle is
-   (Confirm_Handle'(Handle => STQ.Empty_Handle));
+   function Empty_Handle return Confirm_Handle
+   is (Confirm_Handle'(Handle => STQ.Empty_Handle));
 
-   function Empty_Handle return Service_Handle is
-   (Service_Handle'(Handle => STQ.Empty_Handle));
+   function Empty_Handle return Service_Handle
+   is (Service_Handle'(Handle => STQ.Empty_Handle));
 
 end LibSAP.Synchronous_Provider_Service_Access_Point;
