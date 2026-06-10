@@ -177,6 +177,22 @@ is
           = Valid_Request (Request_Reference (Source).all)'Old);
 
    generic
+      with function Property (Request : Request_Type) return Boolean;
+   procedure Move_Request_Handle_With_Property
+     (Target : in out Request_Handle; Source : in out Request_Handle)
+   with
+     Inline,
+     Pre    => Is_Null (Target) and not Is_Null (Source),
+     Post   =>
+       not Is_Null (Target)
+       and Is_Null (Source)
+       and (Get_TID (Target) = Get_TID (Source)'Old)
+       and (Request_Written (Target) = Request_Written (Source)'Old)
+       and
+         (Property (Request_Reference (Target).all)
+          = Property (Request_Reference (Source).all)'Old);
+
+   generic
       with procedure Initialize (Request : out Request_Type);
       with function Precondition return Boolean;
       with function Postcondition (Request : Request_Type) return Boolean;
@@ -313,6 +329,35 @@ is
                Confirm_Reference (Source).all)'Old);
 
    generic
+      with function Request_Property (Request : Request_Type) return Boolean;
+      with function Confirm_Property (Confirm : Confirm_Type) return Boolean;
+
+      with
+        function Pair_Property
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+   procedure Move_Confirm_Handle_With_Property
+     (Target : in out Confirm_Handle; Source : in out Confirm_Handle)
+   with
+     Inline,
+     Pre    => Is_Null (Target) and not Is_Null (Source),
+     Post   =>
+       not Is_Null (Target)
+       and Is_Null (Source)
+       and (Get_TID (Target) = Get_TID (Source)'Old)
+       and
+         (Request_Property (Request_Reference (Target).all)
+          = Request_Property (Request_Reference (Source).all))
+       and
+         (Confirm_Property (Confirm_Reference (Target).all)
+          = Confirm_Property (Confirm_Reference (Source).all))
+       and
+         (Pair_Property
+            (Request_Reference (Target).all, Confirm_Reference (Target).all)
+          = Pair_Property
+              (Request_Reference (Source).all,
+               Confirm_Reference (Source).all)'Old);
+
+   generic
       with
         procedure Clean
           (Request : in out Request_Type; Confirm : in out Confirm_Type);
@@ -426,6 +471,38 @@ is
        and
          (Valid_Request (Request_Reference (Target).all)
           = Valid_Request (Request_Reference (Source).all)'Old);
+
+   generic
+      with function Request_Property (Request : Request_Type) return Boolean;
+      with function Confirm_Property (Confirm : Confirm_Type) return Boolean;
+      with
+        function Pair_Property
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+   procedure Move_Service_Handle_With_Property
+     (Target : in out Service_Handle; Source : in out Service_Handle)
+   with
+     Inline,
+     Pre    => Is_Null (Target) and not Is_Null (Source),
+     Post   =>
+       not Is_Null (Target)
+       and Is_Null (Source)
+       and (Get_TID (Target) = Get_TID (Source)'Old)
+       and (Confirm_Written (Target) = Confirm_Written (Source)'Old)
+       and
+         (Request_Property (Request_Reference (Target).all)
+          = Request_Property (Request_Reference (Source).all)'Old)
+       and
+         (if Confirm_Written (Source)'Old
+          then
+            (Confirm_Property (Confirm_Reference (Target).all)
+             = Confirm_Property (Confirm_Reference (Source).all)'Old)
+            and
+              (Pair_Property
+                 (Request_Reference (Target).all,
+                  Confirm_Reference (Target).all)
+               = Pair_Property
+                   (Request_Reference (Source).all,
+                    Confirm_Reference (Source).all)'Old));
 
    generic
       with

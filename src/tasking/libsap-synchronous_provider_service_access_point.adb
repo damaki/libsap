@@ -241,6 +241,51 @@ is
       STQ.Move (Target => Target.Handle, Source => Source.Handle);
    end Move;
 
+   ---------------------------------------
+   -- Move_Request_Handle_With_Property --
+   ---------------------------------------
+
+   procedure Move_Request_Handle_With_Property
+     (Target : in out Request_Handle; Source : in out Request_Handle)
+   is
+      procedure Move_Wrapper is new
+        STQ.Move_Request_Handle_With_Property (Property => Property);
+   begin
+      Move_Wrapper (Target => Target.Handle, Source => Source.Handle);
+   end Move_Request_Handle_With_Property;
+
+   ---------------------------------------
+   -- Move_Confirm_Handle_With_Property --
+   ---------------------------------------
+
+   procedure Move_Confirm_Handle_With_Property
+     (Target : in out Confirm_Handle; Source : in out Confirm_Handle)
+   is
+      procedure Move_Wrapper is new
+        STQ.Move_Confirm_Handle_With_Property
+          (Request_Property => Request_Property,
+           Confirm_Property => Confirm_Property,
+           Pair_Property    => Pair_Property);
+   begin
+      Move_Wrapper (Target => Target.Handle, Source => Source.Handle);
+   end Move_Confirm_Handle_With_Property;
+
+   ---------------------------------------
+   -- Move_Service_Handle_With_Property --
+   ---------------------------------------
+
+   procedure Move_Service_Handle_With_Property
+     (Target : in out Service_Handle; Source : in out Service_Handle)
+   is
+      procedure Move_Wrapper is new
+        STQ.Move_Service_Handle_With_Property
+          (Request_Property => Request_Property,
+           Confirm_Property => Confirm_Property,
+           Pair_Property    => Pair_Property);
+   begin
+      Move_Wrapper (Target => Target.Handle, Source => Source.Handle);
+   end Move_Service_Handle_With_Property;
+
    -------------
    -- Cleanup --
    -------------

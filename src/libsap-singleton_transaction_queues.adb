@@ -415,6 +415,43 @@ is
       Source.TD := null;
    end Move;
 
+   ---------------------------------------
+   -- Move_Request_Handle_With_Property --
+   ---------------------------------------
+
+   procedure Move_Request_Handle_With_Property
+     (Target : in out Request_Handle; Source : in out Request_Handle)
+   is
+   begin
+      Target.TD := Source.TD;
+      Source.TD := null;
+   end Move_Request_Handle_With_Property;
+
+   ---------------------------------------
+   -- Move_Confirm_Handle_With_Property --
+   ---------------------------------------
+
+   procedure Move_Confirm_Handle_With_Property
+     (Target : in out Confirm_Handle; Source : in out Confirm_Handle)
+   is
+   begin
+      Target.TD := Source.TD;
+      Source.TD := null;
+   end Move_Confirm_Handle_With_Property;
+
+   ---------------------------------------
+   -- Move_Service_Handle_With_Property --
+   ---------------------------------------
+
+   procedure Move_Service_Handle_With_Property
+     (Target : in out Service_Handle; Source : in out Service_Handle)
+   is
+   begin
+      Target.Fixed_Request_Kind := Source.Fixed_Request_Kind;
+      Target.TD := Source.TD;
+      Source.TD := null;
+   end Move_Service_Handle_With_Property;
+
    -------------
    -- Cleanup --
    -------------

@@ -128,6 +128,10 @@ is
    is (True);
 
    function Always_True
+     (Response : Response_Type with Unreferenced) return Boolean
+   is (True);
+
+   function Always_True
      (Indication : Indication_Type with Unreferenced;
       Response   : Response_Type with Unreferenced) return Boolean
    is (True);
@@ -193,6 +197,36 @@ is
        and
          (Valid_Indication (Indication_Reference (Target).all)
           = Valid_Indication (Indication_Reference (Source).all)'Old);
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  The indication primitive is not modified during the move, but this
+   --  cannot be fully expressed in the postcondition since Indication_Type is
+   --  a limited type, so it is therefore not possible to refer to the `'Old`
+   --  value of the indication object.
+   --
+   --  If you need to prove that certain properties on the indication object
+   --  are preserved during the move, then use
+   --  `Move_Indication_Handle_With_Property`.
+
+   generic
+      with function Property (Indication : Indication_Type) return Boolean;
+   procedure Move_Indication_Handle_With_Property
+     (Target : in out Indication_Handle; Source : in out Indication_Handle)
+   with
+     Inline,
+     Pre    => Is_Null (Target) and not Is_Null (Source),
+     Post   =>
+       not Is_Null (Target)
+       and Is_Null (Source)
+       and (Get_TID (Target) = Get_TID (Source)'Old)
+       and (Indication_Written (Target) = Indication_Written (Source)'Old)
+       and
+         (Property (Indication_Reference (Target).all)
+          = Property (Indication_Reference (Source).all)'Old);
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  This is the same as `Move`, but also proves that an arbitrary
+   --  `Property` of the indication object is also preserved during the move.
 
    generic
       with procedure Initialize (Indication : out Indication_Type);
@@ -288,6 +322,7 @@ is
        (Is_Null (Target) = Is_Null (Source)'Old)
        and Is_Null (Source)
        and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
+   --  Moves ownership of a promise from one handle to another
 
    ---------------------
    -- Response Handles --
@@ -358,6 +393,57 @@ is
           = Valid_Response
               (Indication_Reference (Source).all,
                Response_Reference (Source).all)'Old);
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  The indication and response primitives are not modified during the move,
+   --  but this cannot be fully expressed in the postcondition since
+   --  Indication_Type and Response_Type are limited types, so it is therefore
+   --  not possible to refer to the `'Old` value of the objects.
+   --
+   --  If you need to prove that certain properties on the primitives are
+   --  preserved during the move, then use
+   --  `Move_Response_Handle_With_Property`.
+
+   generic
+      with
+        function Indication_Property
+          (Indication : Indication_Type) return Boolean is Always_True;
+
+      with
+        function Response_Property (Response : Response_Type) return Boolean
+        is Always_True;
+
+      with
+        function Pair_Property
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
+   procedure Move_Response_Handle_With_Property
+     (Target : in out Response_Handle; Source : in out Response_Handle)
+   with
+     Inline,
+     Pre    => Is_Null (Target) and not Is_Null (Source),
+     Post   =>
+       not Is_Null (Target)
+       and Is_Null (Source)
+       and (Get_TID (Target) = Get_TID (Source)'Old)
+       and
+         (Indication_Property (Indication_Reference (Target).all)
+          = Indication_Property (Indication_Reference (Source).all))
+       and
+         (Response_Property (Response_Reference (Target).all)
+          = Response_Property (Response_Reference (Source).all))
+       and
+         (Pair_Property
+            (Indication_Reference (Target).all,
+             Response_Reference (Target).all)
+          = Pair_Property
+              (Indication_Reference (Source).all,
+               Response_Reference (Source).all)'Old);
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  This is the same as `Move`, but also proves that arbitrary properties
+   --  of the indication and/or response objects are also preserved during the
+   --  move.
 
    generic
       with
@@ -479,6 +565,60 @@ is
        and
          (Valid_Indication (Indication_Reference (Target).all)
           = Valid_Indication (Indication_Reference (Source).all)'Old);
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  The indication primitive and the response primitive (if one has been
+   --  written yet) are not modified during the move, but this cannot be fully
+   --  expressed in the postcondition since Indication_Type and Response_Type
+   --  are limited types, so it is therefore not possible to refer to the
+   --  `'Old` value of the objects.
+   --
+   --  If you need to prove that certain properties on the primitives are
+   --  preserved during the move, then use `Move_Service_Handle_With_Property`.
+
+   generic
+      with
+        function Indication_Property
+          (Indication : Indication_Type) return Boolean is Always_True;
+
+      with
+        function Response_Property (Response : Response_Type) return Boolean
+        is Always_True;
+
+      with
+        function Pair_Property
+          (Indication : Indication_Type; Response : Response_Type)
+           return Boolean is Always_True;
+   procedure Move_Service_Handle_With_Property
+     (Target : in out Service_Handle; Source : in out Service_Handle)
+   with
+     Inline,
+     Pre    => Is_Null (Target) and not Is_Null (Source),
+     Post   =>
+       not Is_Null (Target)
+       and Is_Null (Source)
+       and (Get_TID (Target) = Get_TID (Source)'Old)
+       and (Response_Written (Target) = Response_Written (Source)'Old)
+       and
+         (Indication_Property (Indication_Reference (Target).all)
+          = Indication_Property (Indication_Reference (Source).all)'Old)
+       and
+         (if Response_Written (Source)'Old
+          then
+            (Response_Property (Response_Reference (Target).all)
+             = Response_Property (Response_Reference (Source).all)'Old)
+            and
+              (Pair_Property
+                 (Indication_Reference (Target).all,
+                  Response_Reference (Target).all)
+               = Pair_Property
+                   (Indication_Reference (Source).all,
+                    Response_Reference (Source).all)'Old));
+   --  Moves ownership of a transaction from one handle to another.
+   --
+   --  This is the same as `Move`, but also proves that arbitrary properties
+   --  of the indication and/or response objects are also preserved during the
+   --  move.
 
    ---------------------------------
    -- Service Provider Operations --
@@ -1003,16 +1143,16 @@ private
    -- Empty_Handle --
    ------------------
 
-   function Empty_Handle return Indication_Handle is
-   (Indication_Handle'(Handle => STQ.Empty_Handle));
+   function Empty_Handle return Indication_Handle
+   is (Indication_Handle'(Handle => STQ.Empty_Handle));
 
-   function Empty_Promise return Response_Promise is
-   (Response_Promise'(Handle => STQ.Empty_Promise));
+   function Empty_Promise return Response_Promise
+   is (Response_Promise'(Handle => STQ.Empty_Promise));
 
-   function Empty_Handle return Response_Handle is
-   (Response_Handle'(Handle => STQ.Empty_Handle));
+   function Empty_Handle return Response_Handle
+   is (Response_Handle'(Handle => STQ.Empty_Handle));
 
-   function Empty_Handle return Service_Handle is
-   (Service_Handle'(Handle => STQ.Empty_Handle));
+   function Empty_Handle return Service_Handle
+   is (Service_Handle'(Handle => STQ.Empty_Handle));
 
 end LibSAP.Light_User_Service_Access_Point;
