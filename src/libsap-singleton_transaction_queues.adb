@@ -299,6 +299,12 @@ is
    is (Request_Requires_Cleanup (Handle.TD.all.Request)
        or else Confirm_Requires_Cleanup (Handle.TD.all.Confirm));
 
+   function Requires_Cleanup (Handle : Service_Handle) return Boolean
+   is (Request_Requires_Cleanup (Request_Reference (Handle).all)
+       or else
+         (Confirm_Written (Handle)
+          and then Confirm_Requires_Cleanup (Confirm_Reference (Handle).all)));
+
    -----------------------
    -- Request_Reference --
    -----------------------

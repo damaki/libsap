@@ -209,7 +209,10 @@ is
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Response (Target) = Requires_Response (Source)'Old)
        and (Indication_Written (Target) = Indication_Written (Source)'Old)
-       and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
+       and (Indication_Kind (Target) = Indication_Kind (Source)'Old)
+       and
+         (Valid_Indication (Indication_Reference (Target).all)
+          = Valid_Indication (Indication_Reference (Source).all)'Old);
 
    generic
       with procedure Initialize (Indication : out Indication_Type);
@@ -363,7 +366,18 @@ is
      Post   =>
        (Is_Null (Target) = Is_Null (Source)'Old)
        and Is_Null (Source)
-       and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
+       and (Indication_Kind (Target) = Indication_Kind (Source)'Old)
+       and (Requires_Cleanup (Target) = Requires_Cleanup (Source)'Old)
+       and
+         (Valid_Indication (Indication_Reference (Target).all)
+          = Valid_Indication (Indication_Reference (Source).all)'Old)
+       and
+         (Valid_Response
+            (Indication_Reference (Target).all,
+             Response_Reference (Target).all)
+          = Valid_Response
+              (Indication_Reference (Source).all,
+               Response_Reference (Source).all)'Old);
 
    generic
       with
@@ -457,6 +471,18 @@ is
        and then Response_Written (Handle)
        and then Requires_Response (Handle);
 
+   function Requires_Cleanup (Handle : Service_Handle) return Boolean
+   with
+     Global => null,
+     Pre    => not Is_Null (Handle),
+     Post   =>
+       Requires_Cleanup'Result
+       = (Indication_Requires_Cleanup (Indication_Reference (Handle).all)
+          or else
+            (Response_Written (Handle)
+             and then
+               Response_Requires_Cleanup (Response_Reference (Handle).all)));
+
    procedure Move
      (Target : in out Service_Handle; Source : in out Service_Handle)
    with
@@ -468,7 +494,11 @@ is
        and (Is_Null (Target) = Is_Null (Source)'Old)
        and (Requires_Response (Target) = Requires_Response (Source)'Old)
        and (Response_Written (Target) = Response_Written (Source)'Old)
-       and (Indication_Kind (Target) = Indication_Kind (Source)'Old);
+       and (Indication_Kind (Target) = Indication_Kind (Source)'Old)
+       and (Requires_Cleanup (Target) = Requires_Cleanup (Source)'Old)
+       and
+         (Valid_Indication (Indication_Reference (Target).all)
+          = Valid_Indication (Indication_Reference (Source).all)'Old);
 
    ---------------------------------
    -- Service Provider Operations --
@@ -1006,6 +1036,9 @@ private
    function Requires_Cleanup (Handle : Response_Handle) return Boolean
    is (STQ.Requires_Cleanup (Handle.Handle));
 
+   function Requires_Cleanup (Handle : Service_Handle) return Boolean
+   is (STQ.Requires_Cleanup (Handle.Handle));
+
    ------------------------
    -- Indication_Written --
    ------------------------
@@ -1024,16 +1057,16 @@ private
    -- Empty_Handle --
    ------------------
 
-   function Empty_Handle return Indication_Handle is
-   (Indication_Handle'(Handle => STQ.Empty_Handle));
+   function Empty_Handle return Indication_Handle
+   is (Indication_Handle'(Handle => STQ.Empty_Handle));
 
-   function Empty_Promise return Response_Promise is
-   (Response_Promise'(Handle => STQ.Empty_Promise));
+   function Empty_Promise return Response_Promise
+   is (Response_Promise'(Handle => STQ.Empty_Promise));
 
-   function Empty_Handle return Response_Handle is
-   (Response_Handle'(Handle => STQ.Empty_Handle));
+   function Empty_Handle return Response_Handle
+   is (Response_Handle'(Handle => STQ.Empty_Handle));
 
-   function Empty_Handle return Service_Handle is
-   (Service_Handle'(Handle => STQ.Empty_Handle));
+   function Empty_Handle return Service_Handle
+   is (Service_Handle'(Handle => STQ.Empty_Handle));
 
 end LibSAP.Synchronous_User_Service_Access_Point;
