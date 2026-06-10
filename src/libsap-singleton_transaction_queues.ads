@@ -131,6 +131,9 @@ is
    function Is_Null (Handle : Request_Handle) return Boolean
    with Inline, Global => null;
 
+   function Empty_Handle return Request_Handle
+   with Inline, Global => null, Post => Is_Null (Empty_Handle'Result);
+
    function Get_TID (Handle : Request_Handle) return Transaction_ID
    with Global => null, Pre => not Is_Null (Handle);
 
@@ -219,6 +222,9 @@ is
    --  A confirm handle provides a way for the Service User to hold a reference
    --  to the Confirm object that was sent by the Service Provider.
 
+   function Empty_Promise return Confirm_Promise
+   with Inline, Global => null, Post => Is_Null (Empty_Promise'Result);
+
    function Get_TID (Handle : Confirm_Promise) return Transaction_ID
    with Global => null, Pre => not Is_Null (Handle);
 
@@ -251,6 +257,9 @@ is
 
    function Is_Null (Handle : Confirm_Handle) return Boolean
    with Inline, Global => null;
+
+   function Empty_Handle return Confirm_Handle
+   with Inline, Global => null, Post => Is_Null (Empty_Handle'Result);
 
    function Get_TID (Handle : Confirm_Handle) return Transaction_ID
    with Global => null, Pre => not Is_Null (Handle);
@@ -332,6 +341,9 @@ is
 
    function Is_Null (Handle : Service_Handle) return Boolean
    with Global => null;
+
+   function Empty_Handle return Service_Handle
+   with Inline, Global => null, Post => Is_Null (Empty_Handle'Result);
 
    function Get_TID (Handle : Service_Handle) return Transaction_ID
    with Global => null, Pre => not Is_Null (Handle);
@@ -776,5 +788,21 @@ private
 
    function Is_Null (Promise : Confirm_Promise) return Boolean
    is (Promise.Token = null);
+
+   ------------------
+   -- Empty_Handle --
+   ------------------
+
+   function Empty_Handle return Request_Handle
+   is (Request_Handle'(others => <>));
+
+   function Empty_Promise return Confirm_Promise
+   is (Confirm_Promise'(others => <>));
+
+   function Empty_Handle return Confirm_Handle
+   is (Confirm_Handle'(others => <>));
+
+   function Empty_Handle return Service_Handle
+   is (Service_Handle'(others => <>));
 
 end LibSAP.Singleton_Transaction_Queues;

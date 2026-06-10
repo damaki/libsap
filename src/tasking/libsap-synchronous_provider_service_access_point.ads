@@ -158,6 +158,9 @@ is
    function Is_Null (Handle : Request_Handle) return Boolean
    with Inline, Global => null;
 
+   function Empty_Handle return Request_Handle
+   with Inline, Global => null, Post => Is_Null (Empty_Handle'Result);
+
    function Get_TID (Handle : Request_Handle) return Transaction_ID
    with Inline, Global => null, Pre => not Is_Null (Handle);
 
@@ -266,6 +269,9 @@ is
 
    function Is_Null (Promise : Confirm_Promise) return Boolean;
 
+   function Empty_Promise return Confirm_Promise
+   with Inline, Global => null, Post => Is_Null (Empty_Promise'Result);
+
    function Get_TID (Promise : Confirm_Promise) return Transaction_ID
    with Inline, Global => null, Pre => not Is_Null (Promise);
 
@@ -298,6 +304,9 @@ is
 
    function Is_Null (Handle : Confirm_Handle) return Boolean
    with Inline, Global => null;
+
+   function Empty_Handle return Confirm_Handle
+   with Inline, Global => null, Post => Is_Null (Empty_Handle'Result);
 
    function Get_TID (Handle : Confirm_Handle) return Transaction_ID
    with Inline, Global => null, Pre => not Is_Null (Handle);
@@ -386,6 +395,9 @@ is
 
    function Is_Null (Handle : Service_Handle) return Boolean
    with Global => null;
+
+   function Empty_Handle return Service_Handle
+   with Inline, Global => null, Post => Is_Null (Empty_Handle'Result);
 
    function Get_TID (Handle : Service_Handle) return Transaction_ID
    with Inline, Global => null, Pre => not Is_Null (Handle);
@@ -969,5 +981,21 @@ private
 
    function Request_Written (Handle : Request_Handle) return Boolean
    is (STQ.Request_Written (Handle.Handle));
+
+   ------------------
+   -- Empty_Handle --
+   ------------------
+
+   function Empty_Handle return Request_Handle is
+   (Request_Handle'(Handle => STQ.Empty_Handle));
+
+   function Empty_Promise return Confirm_Promise is
+   (Confirm_Promise'(Handle => STQ.Empty_Promise));
+
+   function Empty_Handle return Confirm_Handle is
+   (Confirm_Handle'(Handle => STQ.Empty_Handle));
+
+   function Empty_Handle return Service_Handle is
+   (Service_Handle'(Handle => STQ.Empty_Handle));
 
 end LibSAP.Synchronous_Provider_Service_Access_Point;
