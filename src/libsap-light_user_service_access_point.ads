@@ -147,6 +147,9 @@ is
    function Is_Null (Handle : Indication_Handle) return Boolean
    with Inline, Global => null;
 
+   function Empty_Handle return Indication_Handle
+   with Inline, Global => null, Post => Is_Null (Empty_Handle'Result);
+
    function Get_TID (Handle : Indication_Handle) return Transaction_ID
    with Inline, Global => null, Pre => not Is_Null (Handle);
 
@@ -262,6 +265,9 @@ is
 
    function Is_Null (Promise : Response_Promise) return Boolean;
 
+   function Empty_Promise return Response_Promise
+   with Inline, Global => null, Post => Is_Null (Empty_Promise'Result);
+
    function Get_TID (Promise : Response_Promise) return Transaction_ID
    with Inline, Global => null, Pre => not Is_Null (Promise);
 
@@ -295,6 +301,9 @@ is
 
    function Is_Null (Handle : Response_Handle) return Boolean
    with Inline, Global => null;
+
+   function Empty_Handle return Response_Handle
+   with Inline, Global => null, Post => Is_Null (Empty_Handle'Result);
 
    function Get_TID (Handle : Response_Handle) return Transaction_ID
    with Inline, Global => null, Pre => not Is_Null (Handle);
@@ -388,6 +397,9 @@ is
 
    function Is_Null (Handle : Service_Handle) return Boolean
    with Global => null;
+
+   function Empty_Handle return Service_Handle
+   with Inline, Global => null, Post => Is_Null (Empty_Handle'Result);
 
    function Get_TID (Handle : Service_Handle) return Transaction_ID
    with Inline, Global => null, Pre => not Is_Null (Handle);
@@ -953,5 +965,21 @@ private
 
    function Indication_Written (Handle : Indication_Handle) return Boolean
    is (STQ.Request_Written (Handle.Handle));
+
+   ------------------
+   -- Empty_Handle --
+   ------------------
+
+   function Empty_Handle return Indication_Handle is
+   (Indication_Handle'(Handle => STQ.Empty_Handle));
+
+   function Empty_Promise return Response_Promise is
+   (Response_Promise'(Handle => STQ.Empty_Promise));
+
+   function Empty_Handle return Response_Handle is
+   (Response_Handle'(Handle => STQ.Empty_Handle));
+
+   function Empty_Handle return Service_Handle is
+   (Service_Handle'(Handle => STQ.Empty_Handle));
 
 end LibSAP.Light_User_Service_Access_Point;
