@@ -19,12 +19,15 @@ private with LibSAP.Singleton_Transaction_Queues;
 --  original request.
 
 generic
-   type Request_Kind_Type is (<>);
-   --  Discrete type (e.g. enumeration) to distinguish between different kinds
-   --  of requests.
+   type Request_Kind_Type is private;
+   --  Type to distinguish between different kinds of requests.
    --
    --  This is typically an enumeration of all the different kinds of requests
-   --  that can be sent through the SAP, but any discrete type will also work.
+   --  that can be sent through the SAP, but any non-limited, definite type
+   --  will work.
+   --
+   --  This type must have default initialization (e.g. Default_Value for
+   --  discrete types).
 
    type Request_Type is limited private;
    --  The data type for request primitives.

@@ -224,7 +224,8 @@ We can describe this in SPARK with the following:
 
 ```ada
    --  The set of possible request primitives
-   type Request_Kind is (ECHO_Req, INCREMENT_Req, INCREMENT_SET_Req);
+   type Request_Kind is (ECHO_Req, INCREMENT_Req, INCREMENT_SET_Req)
+   with Default_Value => ECHO_Req;
 
    --  Parameters for ECHO.req
    type ECHO_Req_Type is record

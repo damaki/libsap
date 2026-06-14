@@ -36,7 +36,8 @@ is
    --  START.ind - notifies that the Service Provider has started up.
    --  DATA.ind - notifies the Service User that some data has been received.
 
-   type Indication_Kind is (START_Ind, DATA_Ind);
+   type Indication_Kind is (START_Ind, DATA_Ind)
+   with Default_Value => START_Ind;
 
    type START_Ind_Type is null record;
 

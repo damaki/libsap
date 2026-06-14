@@ -17,7 +17,7 @@ package body Light_User_SAP_Tests is
    -- Indication_Type --
    ---------------------
 
-   type Indication_Kind is (IND_1, IND_2);
+   type Indication_Kind is (IND_1, IND_2) with Default_Value => IND_1;
 
    type IND_1_Type is record
       Value : Integer := 0;
