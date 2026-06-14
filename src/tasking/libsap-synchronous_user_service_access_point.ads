@@ -21,13 +21,15 @@ private with LibSAP.Singleton_Transaction_Queues;
 --  accessed by multiple tasks concurrently.
 
 generic
-   type Indication_Kind_Type is (<>);
-   --  Discrete type (e.g. enumeration) to distinguish between different kinds
-   --  of indications.
+   type Indication_Kind_Type is private;
+   --  Type to distinguish between different kinds of indications.
    --
    --  This is typically an enumeration of all the different kinds of
-   --  indications that can be sent through the SAP, but any discrete type will
-   --  also work.
+   --  indications that can be sent through the SAP, but any non-limited,
+   --  definite type will work.
+   --
+   --  This type must have default initialization (e.g. Default_Value for
+   --  discrete types).
 
    type Indication_Type is limited private;
    --  The data type for indication primitives.

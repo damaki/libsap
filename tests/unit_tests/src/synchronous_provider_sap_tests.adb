@@ -19,7 +19,7 @@ package body Synchronous_Provider_SAP_Tests is
    -- Request_Type --
    ------------------
 
-   type Request_Kind is (REQ_1, REQ_2);
+   type Request_Kind is (REQ_1, REQ_2) with Default_Value => REQ_1;
 
    type REQ_1_Type is record
       Value : Integer := 0;

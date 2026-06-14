@@ -25,7 +25,8 @@ is
 
    subtype Message_Length is Natural range 0 .. 128;
 
-   type Request_Kind is (LOG_req);
+   type Request_Kind is (LOG_req)
+   with Default_Value => LOG_req;
 
    type LOG_Req_Type (Length : Message_Length := 0) is record
       Message : String (1 .. Length) := [others => ' '];

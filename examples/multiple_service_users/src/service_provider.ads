@@ -20,7 +20,8 @@ is
    --  INCREMENT.req - request to increment an integer in an INCREMENT.cfm
    --  INCREMENT-SET.req - request to change the amount to increment by
 
-   type Request_Kind is (ECHO_Req, INCREMENT_Req, INCREMENT_SET_Req);
+   type Request_Kind is (ECHO_Req, INCREMENT_Req, INCREMENT_SET_Req)
+   with Default_Value => ECHO_Req;
 
    type ECHO_Req_Type is record
       Value_To_Echo : Natural := 0;

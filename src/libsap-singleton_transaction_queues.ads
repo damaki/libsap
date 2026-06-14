@@ -23,7 +23,7 @@ private with LibSAP.Pointer_Queues;
 --  procedure to relinquish the handle back to the transaction queue.
 
 private generic
-   type Request_Kind_Type is (<>);
+   type Request_Kind_Type is private;
 
    type Request_Type is limited private;
    type Confirm_Type is limited private;
@@ -900,7 +900,7 @@ private
 
    type Service_Handle is limited record
       TD                 : Transaction_Data_Access := null;
-      Fixed_Request_Kind : Request_Kind_Type := Request_Kind_Type'First;
+      Fixed_Request_Kind : Request_Kind_Type;
    end record
    with
      Ghost_Predicate =>
@@ -930,7 +930,7 @@ private
    type Confirm_Promise is limited record
       Token : Confirm_Promise_Token_Access := null;
 
-      Request_Kind : Request_Kind_Type := Request_Kind_Type'First;
+      Request_Kind : Request_Kind_Type;
       --  Holds a copy of the Request_Kind at the point when the request
       --  was sent to the Service Provider. This helps the Service User to
       --  prove that the Request_Kind is preserved when they get the confirm
