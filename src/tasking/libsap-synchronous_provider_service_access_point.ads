@@ -857,7 +857,6 @@ is
 
    procedure Send_Confirm (Handle : in out Service_Handle)
    with
-     Global => (In_Out => Transaction_Queue),
      Pre    =>
        not Is_Null (Handle)
        and then Requires_Confirm (Handle)
