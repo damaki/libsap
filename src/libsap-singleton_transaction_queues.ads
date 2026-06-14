@@ -44,16 +44,20 @@ private generic
      function Confirm_Requires_Cleanup (Confirm : Confirm_Type) return Boolean;
 
    with
-     function Might_Require_Cleanup (Kind : Request_Kind_Type) return Boolean;
+     function Might_Require_Cleanup (Kind : Request_Kind_Type) return Boolean
+     with Ghost;
    --  Returns True if a Request OR Confirm primitive of this kind might
    --  require cleanup before they are freed at the end of a transaction.
 
-   with function Valid_Request (Request : Request_Type) return Boolean;
+   with
+     function Valid_Request (Request : Request_Type) return Boolean
+     with Ghost;
    --  Returns True if the Request contains a valid request.
 
    with
      function Valid_Confirm
-       (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+       (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+     with Ghost;
    --  Returns True if the Confirm object is valid for the given Request
 package LibSAP.Singleton_Transaction_Queues with
     Elaborate_Body,
@@ -177,13 +181,15 @@ is
           = Valid_Request (Request_Reference (Source).all)'Old);
 
    generic
-      with function Property (Request : Request_Type) return Boolean;
+      with
+        function Property (Request : Request_Type) return Boolean
+        with Ghost;
    procedure Move_Request_Handle_With_Property
      (Target : in out Request_Handle; Source : in out Request_Handle)
    with
      Inline,
-     Pre    => Is_Null (Target) and not Is_Null (Source),
-     Post   =>
+     Pre  => Is_Null (Target) and not Is_Null (Source),
+     Post =>
        not Is_Null (Target)
        and Is_Null (Source)
        and (Get_TID (Target) = Get_TID (Source)'Old)
@@ -194,8 +200,14 @@ is
 
    generic
       with procedure Initialize (Request : out Request_Type);
-      with function Precondition return Boolean;
-      with function Postcondition (Request : Request_Type) return Boolean;
+
+      with
+        function Precondition return Boolean
+        with Ghost;
+
+      with
+        function Postcondition (Request : Request_Type) return Boolean
+        with Ghost;
    procedure Initialize_Request (Handle : in out Request_Handle)
    with
      Pre  =>
@@ -210,8 +222,12 @@ is
 
    generic
       with procedure Update (Request : in out Request_Type);
-      with function Precondition (Request : Request_Type) return Boolean;
-      with function Postcondition (Request : Request_Type) return Boolean;
+      with
+        function Precondition (Request : Request_Type) return Boolean
+        with Ghost;
+      with
+        function Postcondition (Request : Request_Type) return Boolean
+        with Ghost;
    procedure Update_Request (Handle : in out Request_Handle)
    with
      Pre  =>
@@ -329,18 +345,24 @@ is
                Confirm_Reference (Source).all)'Old);
 
    generic
-      with function Request_Property (Request : Request_Type) return Boolean;
-      with function Confirm_Property (Confirm : Confirm_Type) return Boolean;
+      with
+        function Request_Property (Request : Request_Type) return Boolean
+        with Ghost;
+
+      with
+        function Confirm_Property (Confirm : Confirm_Type) return Boolean
+        with Ghost;
 
       with
         function Pair_Property
-          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        with Ghost;
    procedure Move_Confirm_Handle_With_Property
      (Target : in out Confirm_Handle; Source : in out Confirm_Handle)
    with
      Inline,
-     Pre    => Is_Null (Target) and not Is_Null (Source),
-     Post   =>
+     Pre  => Is_Null (Target) and not Is_Null (Source),
+     Post =>
        not Is_Null (Target)
        and Is_Null (Source)
        and (Get_TID (Target) = Get_TID (Source)'Old)
@@ -364,11 +386,13 @@ is
 
       with
         function Precondition
-          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        with Ghost;
 
       with
         function Postcondition
-          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        with Ghost;
    procedure Cleanup (Handle : in out Confirm_Handle)
    with
      Inline,
@@ -473,17 +497,24 @@ is
           = Valid_Request (Request_Reference (Source).all)'Old);
 
    generic
-      with function Request_Property (Request : Request_Type) return Boolean;
-      with function Confirm_Property (Confirm : Confirm_Type) return Boolean;
+      with
+        function Request_Property (Request : Request_Type) return Boolean
+        with Ghost;
+
+      with
+        function Confirm_Property (Confirm : Confirm_Type) return Boolean
+        with Ghost;
+
       with
         function Pair_Property
-          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        with Ghost;
    procedure Move_Service_Handle_With_Property
      (Target : in out Service_Handle; Source : in out Service_Handle)
    with
      Inline,
-     Pre    => Is_Null (Target) and not Is_Null (Source),
-     Post   =>
+     Pre  => Is_Null (Target) and not Is_Null (Source),
+     Post =>
        not Is_Null (Target)
        and Is_Null (Source)
        and (Get_TID (Target) = Get_TID (Source)'Old)
@@ -509,11 +540,14 @@ is
         procedure Initialize
           (Request : Request_Type; Confirm : out Confirm_Type);
 
-      with function Precondition (Request : Request_Type) return Boolean;
+      with
+        function Precondition (Request : Request_Type) return Boolean
+        with Ghost;
 
       with
         function Postcondition
-          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        with Ghost;
    procedure Initialize_Confirm (Handle : in out Service_Handle)
    with
      Pre  =>
@@ -538,11 +572,13 @@ is
 
       with
         function Precondition
-          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        with Ghost;
 
       with
         function Postcondition
-          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        with Ghost;
    procedure Update_Confirm (Handle : in out Service_Handle)
    with
      Inline,
@@ -565,8 +601,14 @@ is
 
    generic
       with procedure Consume (Request : in out Request_Type);
-      with function Precondition (Request : Request_Type) return Boolean;
-      with function Postcondition (Request : Request_Type) return Boolean;
+
+      with
+        function Precondition (Request : Request_Type) return Boolean
+        with Ghost;
+
+      with
+        function Postcondition (Request : Request_Type) return Boolean
+        with Ghost;
    procedure Consume_Request (Handle : in out Service_Handle)
    with
      Inline,
@@ -585,11 +627,14 @@ is
         procedure Initialize
           (Request : in out Request_Type; Confirm : out Confirm_Type);
 
-      with function Precondition (Request : Request_Type) return Boolean;
+      with
+        function Precondition (Request : Request_Type) return Boolean
+        with Ghost;
 
       with
         function Postcondition
-          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        with Ghost;
    procedure Consume_Request_And_Initialize_Confirm
      (Handle : in out Service_Handle)
    with
@@ -615,11 +660,13 @@ is
 
       with
         function Precondition
-          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        with Ghost;
 
       with
         function Postcondition
-          (Request : Request_Type; Confirm : Confirm_Type) return Boolean;
+          (Request : Request_Type; Confirm : Confirm_Type) return Boolean
+        with Ghost;
    procedure Consume_Request_And_Update_Confirm
      (Handle : in out Service_Handle)
    with

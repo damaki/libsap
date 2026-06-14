@@ -90,7 +90,8 @@ generic
 
    with
      function Might_Require_Cleanup
-       (Kind : Indication_Kind_Type) return Boolean;
+       (Kind : Indication_Kind_Type) return Boolean
+     with Ghost;
    --  Returns True if an Indication OR Response primitive of this Kind might
    --  require cleanup before they are freed at the end of a transaction.
    --
@@ -103,7 +104,8 @@ generic
    --  ownership semantics. Otherwise, it should return False.
 
    with
-     function Valid_Indication (Indication : Indication_Type) return Boolean;
+     function Valid_Indication (Indication : Indication_Type) return Boolean
+     with Ghost;
    --  Returns True if the Indication object is valid
    --
    --  This can be used to validate the contents of an indication to ensure
@@ -111,7 +113,8 @@ generic
 
    with
      function Valid_Response
-       (Indication : Indication_Type; Response : Response_Type) return Boolean;
+       (Indication : Indication_Type; Response : Response_Type) return Boolean
+     with Ghost;
    --  Returns True if the Response object is valid for the given Indication
    --
    --  This can be used to validate the contents of a response primitive to
@@ -229,13 +232,15 @@ is
    --  `Move_Indication_Handle_With_Property`.
 
    generic
-      with function Property (Indication : Indication_Type) return Boolean;
+      with
+        function Property (Indication : Indication_Type) return Boolean
+        with Ghost;
    procedure Move_Indication_Handle_With_Property
      (Target : in out Indication_Handle; Source : in out Indication_Handle)
    with
      Inline,
-     Pre    => Is_Null (Target) and not Is_Null (Source),
-     Post   =>
+     Pre  => Is_Null (Target) and not Is_Null (Source),
+     Post =>
        not Is_Null (Target)
        and Is_Null (Source)
        and (Get_TID (Target) = Get_TID (Source)'Old)
@@ -250,10 +255,13 @@ is
 
    generic
       with procedure Initialize (Indication : out Indication_Type);
-      with function Precondition return Boolean is Always_True;
+      with
+        function Precondition return Boolean is Always_True
+        with Ghost;
       with
         function Postcondition (Indication : Indication_Type) return Boolean
-        is Always_True;
+        is Always_True
+        with Ghost;
    procedure Initialize_Indication (Handle : in out Indication_Handle)
    with
      Inline,
@@ -427,22 +435,25 @@ is
    generic
       with
         function Indication_Property
-          (Indication : Indication_Type) return Boolean is Always_True;
+          (Indication : Indication_Type) return Boolean is Always_True
+        with Ghost;
 
       with
         function Response_Property (Response : Response_Type) return Boolean
-        is Always_True;
+        is Always_True
+        with Ghost;
 
       with
         function Pair_Property
           (Indication : Indication_Type; Response : Response_Type)
-           return Boolean is Always_True;
+           return Boolean is Always_True
+        with Ghost;
    procedure Move_Response_Handle_With_Property
      (Target : in out Response_Handle; Source : in out Response_Handle)
    with
      Inline,
-     Pre    => Is_Null (Target) and not Is_Null (Source),
-     Post   =>
+     Pre  => Is_Null (Target) and not Is_Null (Source),
+     Post =>
        not Is_Null (Target)
        and Is_Null (Source)
        and (Get_TID (Target) = Get_TID (Source)'Old)
@@ -474,12 +485,14 @@ is
       with
         function Precondition
           (Indication : Indication_Type; Response : Response_Type)
-           return Boolean is Always_True;
+           return Boolean is Always_True
+        with Ghost;
 
       with
         function Postcondition
           (Indication : Indication_Type; Response : Response_Type)
-           return Boolean is Always_True;
+           return Boolean is Always_True
+        with Ghost;
    procedure Cleanup (Handle : in out Response_Handle)
    with
      Inline,
@@ -599,22 +612,25 @@ is
    generic
       with
         function Indication_Property
-          (Indication : Indication_Type) return Boolean is Always_True;
+          (Indication : Indication_Type) return Boolean is Always_True
+        with Ghost;
 
       with
         function Response_Property (Response : Response_Type) return Boolean
-        is Always_True;
+        is Always_True
+        with Ghost;
 
       with
         function Pair_Property
           (Indication : Indication_Type; Response : Response_Type)
-           return Boolean is Always_True;
+           return Boolean is Always_True
+        with Ghost;
    procedure Move_Service_Handle_With_Property
      (Target : in out Service_Handle; Source : in out Service_Handle)
    with
      Inline,
-     Pre    => Is_Null (Target) and not Is_Null (Source),
-     Post   =>
+     Pre  => Is_Null (Target) and not Is_Null (Source),
+     Post =>
        not Is_Null (Target)
        and Is_Null (Source)
        and (Get_TID (Target) = Get_TID (Source)'Old)
@@ -887,12 +903,14 @@ is
 
       with
         function Precondition (Indication : Indication_Type) return Boolean
-        is Always_True;
+        is Always_True
+        with Ghost;
 
       with
         function Postcondition
           (Indication : Indication_Type; Response : Response_Type)
-           return Boolean is Always_True;
+           return Boolean is Always_True
+        with Ghost;
    procedure Initialize_Response (Handle : in out Service_Handle)
    with
      Pre  =>
@@ -923,12 +941,14 @@ is
       with
         function Precondition
           (Indication : Indication_Type; Response : Response_Type)
-           return Boolean is Always_True;
+           return Boolean is Always_True
+        with Ghost;
 
       with
         function Postcondition
           (Indication : Indication_Type; Response : Response_Type)
-           return Boolean is Always_True;
+           return Boolean is Always_True
+        with Ghost;
    procedure Update_Response (Handle : in out Service_Handle)
    with
      Inline,
@@ -965,11 +985,13 @@ is
 
       with
         function Precondition (Indication : Indication_Type) return Boolean
-        is Always_True;
+        is Always_True
+        with Ghost;
 
       with
         function Postcondition (Indication : Indication_Type) return Boolean
-        is Always_True;
+        is Always_True
+        with Ghost;
    procedure Consume_Indication (Handle : in out Service_Handle)
    with
      Pre  =>
@@ -999,12 +1021,14 @@ is
 
       with
         function Precondition (Indication : Indication_Type) return Boolean
-        is Always_True;
+        is Always_True
+        with Ghost;
 
       with
         function Postcondition
           (Indication : Indication_Type; Response : Response_Type)
-           return Boolean is Always_True;
+           return Boolean is Always_True
+        with Ghost;
    procedure Consume_Indication_And_Initialize_Response
      (Handle : in out Service_Handle)
    with
@@ -1043,12 +1067,14 @@ is
       with
         function Precondition
           (Indication : Indication_Type; Response : Response_Type)
-           return Boolean is Always_True;
+           return Boolean is Always_True
+        with Ghost;
 
       with
         function Postcondition
           (Indication : Indication_Type; Response : Response_Type)
-           return Boolean is Always_True;
+           return Boolean is Always_True
+        with Ghost;
    procedure Consume_Indication_And_Update_Response
      (Handle : in out Service_Handle)
    with

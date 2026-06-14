@@ -71,7 +71,7 @@ is
 
    subtype Confirm_Pending_Transaction_Data_Access is Transaction_Data_Access
    with
-     Predicate =>
+     Ghost_Predicate =>
        (if Confirm_Pending_Transaction_Data_Access /= null
         then
           Confirm_Pending_Transaction_Data_Access.all.State = Confirm_Pending
