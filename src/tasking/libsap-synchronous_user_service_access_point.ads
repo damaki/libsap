@@ -665,9 +665,10 @@ is
    procedure Try_Allocate_Indication (Handle : in out Indication_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    => Is_Null (Handle),
-     Post   =>
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               => Is_Null (Handle),
+     Post              =>
        (if not Is_Null (Handle)
         then
           not Indication_Written (Handle)
@@ -711,12 +712,13 @@ is
    procedure Abort_Indication (Handle : in out Indication_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    =>
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               =>
        not Is_Null (Handle)
        and then
          not Indication_Requires_Cleanup (Indication_Reference (Handle).all),
-     Post   => Is_Null (Handle);
+     Post              => Is_Null (Handle);
    --  Abandons an allocated indication transaction, reclaiming its resources
    --  and releasing its memory back to the SAP without dispatching it.
    --
@@ -729,9 +731,11 @@ is
    procedure Discard (Promise : in out Response_Promise)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    => not Might_Require_Cleanup (Indication_Kind (Promise)),
-     Post   => Is_Null (Promise);
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               =>
+       not Might_Require_Cleanup (Indication_Kind (Promise)),
+     Post              => Is_Null (Promise);
    --  Releases resources associated with a promise that is no longer needed.
    --
    --  This is intended for cases when the caller has sent an indication that
@@ -754,9 +758,10 @@ is
      (Handle : in out Response_Handle; Promise : in out Response_Promise)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    => Is_Null (Handle) and then not Is_Null (Promise),
-     Post   =>
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               => Is_Null (Handle) and then not Is_Null (Promise),
+     Post              =>
        (Is_Null (Handle) = not Is_Null (Promise))
        and
          (Get_TID (Promise)'Old
@@ -787,9 +792,11 @@ is
    procedure Release (Handle : in out Response_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    => not Is_Null (Handle) and then not Requires_Cleanup (Handle),
-     Post   => Is_Null (Handle);
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               =>
+       not Is_Null (Handle) and then not Requires_Cleanup (Handle),
+     Post              => Is_Null (Handle);
    --  Finalizes a transaction and releases all resources held by it.
    --
    --  This is called by the Service Provider at the end of the transaction
@@ -862,13 +869,14 @@ is
 
    procedure Release (Handle : in out Service_Handle)
    with
-     Global => (In_Out => Transaction_Queue),
-     Pre    =>
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               =>
        not Is_Null (Handle)
        and then not Requires_Response (Handle)
        and then
          not Indication_Requires_Cleanup (Indication_Reference (Handle).all),
-     Post   => Is_Null (Handle);
+     Post              => Is_Null (Handle);
    --  Finalizes a transaction and releases all resources held by it.
    --
    --  This is called by the Service User when it has finished processing
@@ -881,7 +889,8 @@ is
 
    procedure Send_Response (Handle : in out Service_Handle)
    with
-     Pre    =>
+     Always_Terminates => False,
+     Pre               =>
        not Is_Null (Handle)
        and then Requires_Response (Handle)
        and then Response_Written (Handle)
@@ -889,7 +898,7 @@ is
          Valid_Response
            (Indication_Reference (Handle).all,
             Response_Reference (Handle).all),
-     Post   => Is_Null (Handle);
+     Post              => Is_Null (Handle);
    --  Send a response primitive to a Service Provider.
    --
    --  This must be called when the Service User has finished processing an
