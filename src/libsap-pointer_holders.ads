@@ -22,12 +22,11 @@ private generic
 package LibSAP.Pointer_Holders with
     SPARK_Mode,
     Abstract_State => (Pointer_Pool with Synchronous),
-    Initializes    => Pointer_Pool,
-    Always_Terminates
+    Initializes    => Pointer_Pool
 is
 
    procedure Check_Is_Null (ID : Element_ID; Is_Null : out Boolean)
-   with Inline, Global => (Input => Pointer_Pool);
+   with Inline, Always_Terminates, Global => (Input => Pointer_Pool);
    --  Query if a pointer in a slot is currently null.
    --
    --  Note that even if this procedure reports Is_Null is True or False,
@@ -36,27 +35,59 @@ is
    --
    --  This uses the relaxed memory order.
 
+   procedure Store (Element : in out Element_Access)
+   with
+     Inline,
+     Always_Terminates,
+     Global => (In_Out => Pointer_Pool),
+     Pre    => Element /= null,
+     Post   => Element = null;
+   --  Store a pointer in the slot determined by Element.all.ID.
+   --
+   --  Warning: Storing a pointer in a slot that already contains a non-null
+   --  pointer may cause a memory leak since the existing slot pointer will be
+   --  overwritten. This procedure should only be used when it can be
+   --  guaranteed that the slot is null, such as after this package is
+   --  elaborated.
+   --
+   --  This uses release memory order.
+
    procedure Exchange (Element : in out Element_Access)
-   with Inline, Global => (In_Out => Pointer_Pool), Pre => Element /= null;
+   with
+     Inline,
+     Always_Terminates => False,
+     Global            => (In_Out => Pointer_Pool),
+     Pre               => Element /= null;
    --  Exchange a pointer in the slot determined by Element.all.ID.
    --
    --  This exchanges Element with the pool already stored at that position.
    --  If the pool did not contain an element at that position, then Element
    --  is set to null.
    --
+   --  Note that this procedure is not guaranteed to terminate due to the use
+   --  of atomic exchange intrinsics internally, which may use retry loops on
+   --  some architecture (e.g. Armv7-M which uses a LDREX/STREX loop to do
+   --  the exchange, which may experience a livelock or infinite retry loops).
+   --
    --  This uses acquire-release memory order.
 
    procedure Retrieve (ID : Element_ID; Element : out Element_Access)
    with
      Inline,
-     Global => (In_Out => Pointer_Pool),
-     Post   => (if Element /= null then Element.all.ID = ID);
+     Always_Terminates => False,
+     Global            => (In_Out => Pointer_Pool),
+     Post              => (if Element /= null then Element.all.ID = ID);
    --  Retieve the pointer from the pool stored in the slot at ID.
    --
    --  Element is set to the pointer that was stored in the pool in the slot
    --  at ID (possibly null).
    --
    --  The slot in the pool is set to null.
+   --
+   --  Note that this procedure is not guaranteed to terminate due to the use
+   --  of atomic exchange intrinsics internally, which may use retry loops on
+   --  some architecture (e.g. Armv7-M which uses a LDREX/STREX loop to do
+   --  the exchange, which may experience a livelock or infinite retry loops).
    --
    --  This uses acquire-release memory order.
 

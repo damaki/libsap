@@ -105,27 +105,31 @@ is
 
    procedure Store_In_Free_Pool (Ptr : in out Free_Transaction_Data_Access)
    with
-     Global => (In_Out => Free_Pool.Pointer_Pool),
-     Pre    => Ptr /= null,
-     Post   => Ptr = null;
+     Always_Terminates => False,
+     Global            => (In_Out => Free_Pool.Pointer_Pool),
+     Pre               => Ptr /= null,
+     Post              => Ptr = null;
 
    procedure Store_In_Pending_Confirms_Pool
      (Ptr : in out Confirm_Pending_Transaction_Data_Access)
    with
-     Global => (In_Out => Pending_Confirms_Pool.Pointer_Pool),
-     Pre    => Ptr /= null,
-     Post   => Ptr = null;
+     Always_Terminates => False,
+     Global            => (In_Out => Pending_Confirms_Pool.Pointer_Pool),
+     Pre               => Ptr /= null,
+     Post              => Ptr = null;
 
    procedure Store_In_Discarded_Promises_Pool
      (Ptr : in out Confirm_Promise_Token_Access)
    with
-     Global => (In_Out => Discarded_Promises_Pool.Pointer_Pool),
-     Pre    => Ptr /= null,
-     Post   => Ptr = null;
+     Always_Terminates => False,
+     Global            => (In_Out => Discarded_Promises_Pool.Pointer_Pool),
+     Pre               => Ptr /= null,
+     Post              => Ptr = null;
 
    procedure Resolve_Discarded_Promise (ID : Transaction_ID)
    with
-     Global =>
+     Always_Terminates => False,
+     Global            =>
        (In_Out =>
           (Free_Pool.Pointer_Pool,
            Pending_Confirms_Pool.Pointer_Pool,
@@ -415,8 +419,7 @@ is
    ---------------------------------------
 
    procedure Move_Request_Handle_With_Property
-     (Target : in out Request_Handle; Source : in out Request_Handle)
-   is
+     (Target : in out Request_Handle; Source : in out Request_Handle) is
    begin
       Target.TD := Source.TD;
       Source.TD := null;
@@ -427,8 +430,7 @@ is
    ---------------------------------------
 
    procedure Move_Confirm_Handle_With_Property
-     (Target : in out Confirm_Handle; Source : in out Confirm_Handle)
-   is
+     (Target : in out Confirm_Handle; Source : in out Confirm_Handle) is
    begin
       Target.TD := Source.TD;
       Source.TD := null;
@@ -439,8 +441,7 @@ is
    ---------------------------------------
 
    procedure Move_Service_Handle_With_Property
-     (Target : in out Service_Handle; Source : in out Service_Handle)
-   is
+     (Target : in out Service_Handle; Source : in out Service_Handle) is
    begin
       Target.Fixed_Request_Kind := Source.Fixed_Request_Kind;
       Target.TD := Source.TD;
@@ -969,39 +970,19 @@ is
    begin
       for I in Transaction_ID loop
          declare
-            Token : Confirm_Promise_Token_Access;
-            TD    : Free_Transaction_Data_Access;
-
+            TD : Free_Transaction_Data_Access;
          begin
-
-            Token := new Confirm_Promise_Token'(TID => I);
-
             TD :=
               new Transaction_Data'
                 (TID       => I,
                  Request   => <>,
                  Confirm   => <>,
                  State     => Free,
-                 Cfm_Token => Token);
+                 Cfm_Token => new Confirm_Promise_Token'(TID => I));
 
-            Free_Pool.Exchange (TD);
+            Free_Pool.Store (TD);
 
-            --  Rationale for pragma Assume:
-            --
-            --  The Free pool is initially all null, and it is not possible for
-            --  anything else to store a pointer in Free_Pool before this
-            --  package is elaborated, so TD must be null here.
-
-            pragma
-              Assume
-                (TD = null,
-                 "Slots in Free_Pool are initially null after elaboration");
-
-            --  Defensive check for the above assumption
-
-            if TD /= null then
-               raise Program_Error;
-            end if;
+            pragma Unreferenced (TD);
          end;
       end loop;
    end Fill_Free_Pool;

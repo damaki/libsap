@@ -650,9 +650,10 @@ is
    procedure Try_Allocate_Request (Handle : in out Request_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    => Is_Null (Handle),
-     Post   =>
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               => Is_Null (Handle),
+     Post              =>
        (if not Is_Null (Handle)
         then
           not Request_Written (Handle)
@@ -694,11 +695,12 @@ is
    procedure Abort_Request (Handle : in out Request_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    =>
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               =>
        not Is_Null (Handle)
        and then not Request_Requires_Cleanup (Request_Reference (Handle).all),
-     Post   => Is_Null (Handle);
+     Post              => Is_Null (Handle);
    --  Abandons an allocated request transaction, reclaiming its resources
    --  and releasing its memory back to the SAP without dispatching it.
    --
@@ -711,9 +713,10 @@ is
    procedure Discard (Promise : in out Confirm_Promise)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    => not Might_Require_Cleanup (Request_Kind (Promise)),
-     Post   => Is_Null (Promise);
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               => not Might_Require_Cleanup (Request_Kind (Promise)),
+     Post              => Is_Null (Promise);
    --  Releases resources associated with a promise that is no longer needed.
    --
    --  This is intended for cases when the caller has sent a request that
@@ -736,9 +739,10 @@ is
      (Handle : in out Confirm_Handle; Promise : in out Confirm_Promise)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    => Is_Null (Handle) and then not Is_Null (Promise),
-     Post   =>
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               => Is_Null (Handle) and then not Is_Null (Promise),
+     Post              =>
        (Is_Null (Handle) = not Is_Null (Promise))
        and
          (Get_TID (Promise)'Old
@@ -769,9 +773,11 @@ is
    procedure Release (Handle : in out Confirm_Handle)
    with
      Inline,
-     Global => (In_Out => Transaction_Queue),
-     Pre    => not Is_Null (Handle) and then not Requires_Cleanup (Handle),
-     Post   => Is_Null (Handle);
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               =>
+       not Is_Null (Handle) and then not Requires_Cleanup (Handle),
+     Post              => Is_Null (Handle);
    --  Finalizes a transaction and releases all resources held by it.
    --
    --  This is called by the Service User at the end of the transaction
@@ -843,12 +849,13 @@ is
 
    procedure Release (Handle : in out Service_Handle)
    with
-     Global => (In_Out => Transaction_Queue),
-     Pre    =>
+     Always_Terminates => False,
+     Global            => (In_Out => Transaction_Queue),
+     Pre               =>
        not Is_Null (Handle)
        and then not Requires_Confirm (Handle)
        and then not Request_Requires_Cleanup (Request_Reference (Handle).all),
-     Post   => Is_Null (Handle);
+     Post              => Is_Null (Handle);
    --  Finalizes a transaction and releases all resources held by it.
    --
    --  This is called by the Service Provider when it has finished processing
@@ -860,14 +867,15 @@ is
 
    procedure Send_Confirm (Handle : in out Service_Handle)
    with
-     Pre    =>
+     Always_Terminates => False,
+     Pre               =>
        not Is_Null (Handle)
        and then Requires_Confirm (Handle)
        and then Confirm_Written (Handle)
        and then
          Valid_Confirm
            (Request_Reference (Handle).all, Confirm_Reference (Handle).all),
-     Post   => Is_Null (Handle);
+     Post              => Is_Null (Handle);
    --  Send a confirm primitive to a Service User.
    --
    --  This must be called when the Service Provider has finished processing a

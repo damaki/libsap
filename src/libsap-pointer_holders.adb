@@ -37,6 +37,16 @@ is
       Is_Null := Element = null;
    end Check_Is_Null;
 
+   -----------
+   -- Store --
+   -----------
+
+   procedure Store (Element : in out Element_Access) is
+   begin
+      Atomic_Pointers.Store (Pool (Element.all.ID), Element, Atomic.Release);
+      Element := null;
+   end Store;
+
    --------------
    -- Exchange --
    --------------
