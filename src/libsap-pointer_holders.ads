@@ -18,7 +18,7 @@
 private generic
    type Element_ID is range <>;
    type Element_Type (ID : Element_ID) is limited private;
-   type Element_Access is access all Element_Type;
+   type Element_Access is access Element_Type;
 package LibSAP.Pointer_Holders with
     SPARK_Mode,
     Abstract_State => (Pointer_Pool with Synchronous),

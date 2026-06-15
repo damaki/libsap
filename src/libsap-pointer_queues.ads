@@ -11,7 +11,7 @@
 
 private generic
    type Element_Type;
-   type Element_Access is access all Element_Type;
+   type Element_Access is access Element_Type;
    Queue_Capacity : Positive;
 package LibSAP.Pointer_Queues with Pure, SPARK_Mode, Always_Terminates is
 
