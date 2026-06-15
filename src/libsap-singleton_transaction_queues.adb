@@ -36,11 +36,6 @@ is
    end record
    with Predicate => (if Cfm_Token /= null then Cfm_Token.all.TID = TID);
 
-   type Allocatable_Transaction_Data_Access is access Transaction_Data;
-
-   type Allocatable_Confirm_Promise_Token_Access is
-     access Confirm_Promise_Token;
-
    ---------------
    -- Free Pool --
    ---------------
@@ -974,84 +969,20 @@ is
    begin
       for I in Transaction_ID loop
          declare
-            --  GNATprove warns about a memory leak here because a designated
-            --  value of a general access-to-variable type is allocated on the
-            --  heap, and since the pointer was moved from a pool-specific
-            --  access-to-pointer type the object can no longer be deallocated
-            --  (moving back from a general access-to-variable type to a
-            --  pool-specific access-to-variable type is not allowed).
-            --
-            --  However, the intention here is that all objects are allocated
-            --  once during elaboration and then persist until program
-            --  termination, so we actively want to prevent deallocation
-            --  anyway. The pointers are stored in the Free_Pool immediately
-            --  after they are allocated here, so they are not leaked.
-
             Token : Confirm_Promise_Token_Access;
             TD    : Free_Transaction_Data_Access;
 
-            Alloc_Token : Allocatable_Confirm_Promise_Token_Access;
-
-            pragma
-              Annotate
-                (GNATprove,
-                 Intentional,
-                 "resource or memory leak might occur at end of scope",
-                 "Move from pool-specific access-to-variable type to "
-                 & "general access-to-variable type is intentional. "
-                 & "This object is never meant to be deallocated; it is "
-                 & "allocated during elaboration and persists until program "
-                 & "termination.");
-
-            Alloc_TD : Allocatable_Transaction_Data_Access;
-
-            pragma
-              Annotate
-                (GNATprove,
-                 Intentional,
-                 "resource or memory leak might occur at end of scope",
-                 "Move from pool-specific access-to-variable type to "
-                 & "general access-to-variable type is intentional. "
-                 & "This object is never meant to be deallocated; it is "
-                 & "allocated during elaboration and persists until program "
-                 & "termination.");
-
          begin
 
-            Alloc_Token := new Confirm_Promise_Token'(TID => I);
+            Token := new Confirm_Promise_Token'(TID => I);
 
-            Token := Confirm_Promise_Token_Access (Alloc_Token);
-
-            pragma
-              Annotate
-                (GNATprove,
-                 Intentional,
-                 "resource or memory leak might occur",
-                 "Move from pool-specific access-to-variable type to "
-                 & "general access-to-variable type is intentional. "
-                 & "This object is never meant to be deallocated; it is "
-                 & "allocated during elaboration and persists until program "
-                 & "termination.");
-
-            Alloc_TD :=
+            TD :=
               new Transaction_Data'
                 (TID       => I,
                  Request   => <>,
                  Confirm   => <>,
                  State     => Free,
                  Cfm_Token => Token);
-            TD := Free_Transaction_Data_Access (Alloc_TD);
-
-            pragma
-              Annotate
-                (GNATprove,
-                 Intentional,
-                 "resource or memory leak might occur",
-                 "Move from pool-specific access-to-variable type to "
-                 & "general access-to-variable type is intentional. "
-                 & "This object is never meant to be deallocated; it is "
-                 & "allocated during elaboration and persists until program "
-                 & "termination.");
 
             Free_Pool.Exchange (TD);
 

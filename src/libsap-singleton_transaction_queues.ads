@@ -837,10 +837,10 @@ private
    --  package body can allocate them.
 
    type Transaction_Data;
-   type Transaction_Data_Access is access all Transaction_Data;
+   type Transaction_Data_Access is access Transaction_Data;
 
    type Confirm_Promise_Token;
-   type Confirm_Promise_Token_Access is access all Confirm_Promise_Token;
+   type Confirm_Promise_Token_Access is access Confirm_Promise_Token;
 
    function Pending_Request_Predicate
      (TD : not null Transaction_Data_Access) return Boolean
