@@ -24,7 +24,7 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-latest", "windows-latest"]
-        gnat_version: ["^14", "^15"]
+        gnat_version: ["^14", "^15", "^16"]
 
     runs-on: ${{ matrix.os }}
 
