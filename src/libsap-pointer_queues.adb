@@ -67,9 +67,9 @@ is
 
       pragma
         Assert
-          (for all I in Positive range Logical_Index_Type'Range =>
-             (I in 1 .. Queue.Length)
-             = (Queue.Items (Physical_Index (Queue.First, I)) /= null));
+          (for all I in Logical_Index_Type =>
+             (I <= Queue.Length) =
+              not Is_Null_At (Queue.Items, Queue.First, I));
    end Append;
 
    ------------------------------
