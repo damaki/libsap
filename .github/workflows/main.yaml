@@ -72,6 +72,7 @@ jobs:
     strategy:
       matrix:
         subdir: ${{ fromJson(needs.setup.outputs.directories) }}
+        gnatprove_version: ["^14", "^15", "^16"]
 
     steps:
       - uses: actions/checkout@v6
@@ -84,6 +85,11 @@ jobs:
         shell: bash
         run: |
           cd examples/${{ matrix.subdir }}
+
+          # Test with a specific GNATprove version
+          alr -n with --del gnatprove
+          alr -n with gnatprove${{ matrix.gnatprove_version }}
+
           alr build --stop-after=generation
           alr exec -- gnatprove \
             -P ${{ matrix.subdir}}.gpr \
