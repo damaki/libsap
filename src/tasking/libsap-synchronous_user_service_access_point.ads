@@ -631,27 +631,28 @@ is
      (Target : in out Service_Handle; Source : in out Service_Handle)
    with
      Inline,
-     Pre  => Is_Null (Target) and not Is_Null (Source),
-     Post =>
+     Pre            => Is_Null (Target) and not Is_Null (Source),
+     Post           =>
        not Is_Null (Target)
        and Is_Null (Source)
        and (Get_TID (Target) = Get_TID (Source)'Old)
        and (Response_Written (Target) = Response_Written (Source)'Old)
        and
          (Indication_Property (Indication_Reference (Target).all)
-          = Indication_Property (Indication_Reference (Source).all)'Old)
-       and
-         (if Response_Written (Source)'Old
-          then
-            (Response_Property (Response_Reference (Target).all)
-             = Response_Property (Response_Reference (Source).all)'Old)
-            and
-              (Pair_Property
-                 (Indication_Reference (Target).all,
-                  Response_Reference (Target).all)
-               = Pair_Property
-                   (Indication_Reference (Source).all,
-                    Response_Reference (Source).all)'Old));
+          = Indication_Property (Indication_Reference (Source).all)'Old),
+     Contract_Cases =>
+       (Response_Written (Source) =>
+          (Response_Property (Response_Reference (Target).all)
+           = Response_Property (Response_Reference (Source).all)'Old)
+          and
+            (Pair_Property
+               (Indication_Reference (Target).all,
+                Response_Reference (Target).all)
+             = Pair_Property
+                 (Indication_Reference (Source).all,
+                  Response_Reference (Source).all)'Old),
+
+        others                    => True);
    --  Moves ownership of a transaction from one handle to another.
    --
    --  This is the same as `Move`, but also proves that arbitrary properties

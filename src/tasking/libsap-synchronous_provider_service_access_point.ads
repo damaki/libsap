@@ -616,27 +616,26 @@ is
      (Target : in out Service_Handle; Source : in out Service_Handle)
    with
      Inline,
-     Pre  => Is_Null (Target) and not Is_Null (Source),
-     Post =>
+     Pre            => Is_Null (Target) and not Is_Null (Source),
+     Post           =>
        not Is_Null (Target)
        and Is_Null (Source)
        and (Get_TID (Target) = Get_TID (Source)'Old)
        and (Confirm_Written (Target) = Confirm_Written (Source)'Old)
        and
          (Request_Property (Request_Reference (Target).all)
-          = Request_Property (Request_Reference (Source).all)'Old)
-       and
-         (if Confirm_Written (Source)'Old
-          then
-            (Confirm_Property (Confirm_Reference (Target).all)
-             = Confirm_Property (Confirm_Reference (Source).all)'Old)
-            and
-              (Pair_Property
-                 (Request_Reference (Target).all,
-                  Confirm_Reference (Target).all)
-               = Pair_Property
-                   (Request_Reference (Source).all,
-                    Confirm_Reference (Source).all)'Old));
+          = Request_Property (Request_Reference (Source).all)'Old),
+     Contract_Cases =>
+       (Confirm_Written (Source) =>
+          (Confirm_Property (Confirm_Reference (Target).all)
+           = Confirm_Property (Confirm_Reference (Source).all)'Old)
+          and
+            (Pair_Property
+               (Request_Reference (Target).all, Confirm_Reference (Target).all)
+             = Pair_Property
+                 (Request_Reference (Source).all,
+                  Confirm_Reference (Source).all)'Old),
+        others                   => True);
    --  Moves ownership of a transaction from one handle to another.
    --
    --  This is the same as `Move`, but also proves that arbitrary properties
