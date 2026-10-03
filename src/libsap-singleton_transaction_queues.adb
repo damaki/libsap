@@ -967,23 +967,20 @@ is
    --------------------
 
    procedure Fill_Free_Pool is
+      TD : Free_Transaction_Data_Access;
    begin
       for I in Transaction_ID loop
-         declare
-            TD : Free_Transaction_Data_Access;
-         begin
-            TD :=
-              new Transaction_Data'
-                (TID       => I,
-                 Request   => <>,
-                 Confirm   => <>,
-                 State     => Free,
-                 Cfm_Token => new Confirm_Promise_Token'(TID => I));
+         TD :=
+           new Transaction_Data'
+             (TID       => I,
+              Request   => <>,
+              Confirm   => <>,
+              State     => Free,
+              Cfm_Token => new Confirm_Promise_Token'(TID => I));
 
-            Free_Pool.Store (TD);
+         Free_Pool.Store (TD);
 
-            pragma Unreferenced (TD);
-         end;
+         pragma Loop_Invariant (TD = null);
       end loop;
    end Fill_Free_Pool;
 
